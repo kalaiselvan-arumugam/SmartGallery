@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Photo Manager</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#2b75ee",
+              "background-light": "#f6f7f8",
+              "background-dark": "#111827", // deeply dark slate/gray
+              "surface-dark": "#1f2937", // slightly lighter for panels
+              "surface-active": "#374151", // hover/active states
+              "border-dark": "#374151",
+            },
+            fontFamily: {
+              "display": ["Plus Jakarta Sans", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+    }
+    </script>
+<style>
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111827; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #374151; 
+            border-radius: 5px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4b5563; 
+        }
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #9ca3af;
+            cursor: pointer;
+            margin-top: -5px; 
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #374151;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display flex flex-col h-screen overflow-hidden antialiased">
+<!-- Top Navigation Bar -->
+<header class="flex items-center justify-between border-b border-border-dark dark:bg-surface-dark px-4 py-3 shrink-0 z-20">
+<div class="flex items-center gap-6">
+<!-- App Logo/Title -->
+<div class="flex items-center gap-3">
+<div class="size-8 rounded bg-primary/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined !text-[20px]">photo_library</span>
+</div>
+<h1 class="text-slate-900 dark:text-white text-lg font-bold tracking-tight">PhotoManager</h1>
+</div>
+<!-- Global Search -->
+<div class="relative w-64 hidden md:block">
+<div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+<span class="material-symbols-outlined !text-[20px]">search</span>
+</div>
+<input class="block w-full rounded-lg border-none bg-slate-200 dark:bg-black/20 py-2 pl-10 pr-3 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:ring-1 focus:ring-primary" placeholder="Search photos, people, places..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<!-- Menu Links -->
+<nav class="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-400">
+<a class="hover:text-primary transition-colors" href="#">File</a>
+<a class="hover:text-primary transition-colors" href="#">Edit</a>
+<a class="hover:text-primary transition-colors" href="#">View</a>
+<a class="hover:text-primary transition-colors" href="#">Folder</a>
+<a class="hover:text-primary transition-colors" href="#">Picture</a>
+</nav>
+<!-- Actions -->
+<div class="flex items-center gap-2 border-l border-border-dark pl-4 ml-2">
+<button class="flex items-center gap-2 bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined !text-[18px]">upload</span>
+                    Import
+                </button>
+<button class="p-2 text-slate-400 hover:text-white hover:bg-surface-active rounded-lg transition-colors">
+<span class="material-symbols-outlined !text-[20px]">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-cover bg-center ring-2 ring-surface-active ml-2" data-alt="User profile picture" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBfcI-Co-czxogZCbKBsy92n4-f8n27xRH2k9xTKwLP5w7oajpN0QdVGDejhmSNQHSB0AHgihGcKiJJg1Q2fD1BmspMopGu0pscnk_Euolj5SucjSCicNgZUwtCy5tBnUYW5l_5jozo7lY_T8ydYpvb04VgMN7ULKi4kQHDALC-noB7V8PjOD0VRW2DjBp4VnQMScIgS7nsII8MYeuveZ3Mu0gNnmLS-144ta2bYR282JM4p8UxyqhwOXkkw64I5fVBibVAzDeeejY')"></div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<div class="flex flex-1 overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="w-64 flex flex-col border-r border-border-dark bg-surface-dark dark:bg-[#161e2e] shrink-0">
+<!-- Sidebar Content -->
+<div class="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+<!-- Library Section -->
+<div>
+<h3 class="px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Library</h3>
+<div class="space-y-1">
+<button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-medium">
+<span class="material-symbols-outlined !text-[20px]">photo_library</span>
+                            All Photos
+                        </button>
+<button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-active transition-colors">
+<span class="material-symbols-outlined !text-[20px]">star</span>
+                            Favorites
+                        </button>
+<button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-active transition-colors">
+<span class="material-symbols-outlined !text-[20px]">face</span>
+                            People
+                        </button>
+<button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-active transition-colors">
+<span class="material-symbols-outlined !text-[20px]">location_on</span>
+                            Places
+                        </button>
+</div>
+</div>
+<!-- Folders Section -->
+<div>
+<div class="flex items-center justify-between px-2 mb-2">
+<h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Folders</h3>
+<button class="text-slate-500 hover:text-primary"><span class="material-symbols-outlined !text-[16px]">add</span></button>
+</div>
+<div class="space-y-1">
+<div class="group">
+<button class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-active transition-colors text-sm">
+<span class="material-symbols-outlined !text-[18px] text-slate-500">folder</span>
+<span>2023 - Summer Vacation</span>
+<span class="ml-auto text-xs text-slate-600">142</span>
+</button>
+</div>
+<div class="group">
+<button class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-active transition-colors text-sm">
+<span class="material-symbols-outlined !text-[18px] text-slate-500">folder</span>
+<span>2023 - Project Alpha</span>
+<span class="ml-auto text-xs text-slate-600">89</span>
+</button>
+</div>
+<div class="group">
+<button class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-active transition-colors text-sm">
+<span class="material-symbols-outlined !text-[18px] text-slate-500">folder</span>
+<span>2022 - Christmas</span>
+<span class="ml-auto text-xs text-slate-600">56</span>
+</button>
+</div>
+<div class="group">
+<button class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-active transition-colors text-sm">
+<span class="material-symbols-outlined !text-[18px] text-slate-500">folder</span>
+<span>Exported Edits</span>
+<span class="ml-auto text-xs text-slate-600">12</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Collections Section -->
+<div>
+<div class="flex items-center justify-between px-2 mb-2">
+<h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Collections</h3>
+<button class="text-slate-500 hover:text-primary"><span class="material-symbols-outlined !text-[16px]">add</span></button>
+</div>
+<div class="space-y-1">
+<button class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-active transition-colors text-sm">
+<span class="material-symbols-outlined !text-[18px] text-yellow-500">label</span>
+<span>Best Shots</span>
+</button>
+<button class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-surface-active transition-colors text-sm">
+<span class="material-symbols-outlined !text-[18px] text-green-500">label</span>
+<span>To Edit</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Storage Indicator -->
+<div class="p-4 border-t border-border-dark bg-[#111827]">
+<div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+<span>Storage</span>
+<span>75% used</span>
+</div>
+<div class="w-full h-1.5 bg-surface-active rounded-full overflow-hidden">
+<div class="h-full bg-primary w-3/4 rounded-full"></div>
+</div>
+</div>
+</aside>
+<!-- Main Photo Grid -->
+<main class="flex-1 flex flex-col min-w-0 bg-background-light dark:bg-background-dark relative">
+<!-- Toolbar -->
+<div class="flex items-center justify-between px-6 py-3 border-b border-border-dark bg-background-light dark:bg-background-dark z-10 sticky top-0">
+<div class="flex items-center gap-4">
+<div class="text-sm text-slate-500 font-medium">Viewing: <span class="text-slate-900 dark:text-white">All Photos</span></div>
+<span class="h-4 w-px bg-border-dark"></span>
+<button class="text-xs font-semibold text-primary hover:text-blue-400 uppercase tracking-wide">Select All</button>
+</div>
+<div class="flex items-center gap-6">
+<!-- Thumbnail Size Slider -->
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined !text-[16px] text-slate-500">photo_size_select_small</span>
+<input class="w-32 h-1 bg-surface-active rounded-lg appearance-none cursor-pointer" max="100" min="1" type="range" value="50"/>
+<span class="material-symbols-outlined !text-[20px] text-slate-500">photo_size_select_large</span>
+</div>
+<span class="h-4 w-px bg-border-dark"></span>
+<!-- View Modes -->
+<div class="flex bg-surface-active/50 rounded-lg p-0.5">
+<button class="p-1.5 rounded bg-surface-active text-white shadow-sm">
+<span class="material-symbols-outlined !text-[20px]">grid_view</span>
+</button>
+<button class="p-1.5 rounded text-slate-500 hover:text-slate-300">
+<span class="material-symbols-outlined !text-[20px]">view_list</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Scrollable Grid Area -->
+<div class="flex-1 overflow-y-auto p-6 scroll-smooth">
+<!-- Group 1: Summer Vacation -->
+<div class="mb-10">
+<div class="flex items-center gap-3 mb-4 sticky top-0 z-10 py-2 bg-background-light dark:bg-background-dark/95 backdrop-blur-sm border-b border-transparent">
+<h2 class="text-xl font-bold text-slate-900 dark:text-white">2023 - Summer Vacation</h2>
+<span class="text-sm text-slate-500">Aug 12 - Aug 24 • 142 items</span>
+<div class="h-px bg-border-dark flex-1 ml-4"></div>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+<!-- Photo Item -->
+<div class="group relative aspect-square rounded-lg overflow-hidden bg-surface-dark cursor-pointer ring-offset-2 ring-offset-background-dark focus-within:ring-2 focus-within:ring-primary">
+<img alt="Scenic mountains in Switzerland with green valleys" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" data-alt="Scenic mountains in Switzerland with green valleys" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVGuETPSrmCKmPD2f0HjLScCS50R8WWCp2Aj9Dn3bHPzhpxNAMGDlVBiDgSWSdqNbXtGvQk4__K-J6QwFiN5CBZB0mvAC8YVJKdON9_somcB70eYNDdazKV6yGw5w3NZnLE9-bFNmaCr3b-u1c-a-ChKkY4FNRz0llKua4wQHj38MviToPBFRX8nQh3xPv7BAkWFBROPRGXGk9i8qDM6VwAIZ_0VTThl5aBc5nxvBDd4I5U-3_rrlhlWmOFoA7S0R5KRhr3g3hSa0"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+<div class="flex justify-between items-end">
+<span class="text-white text-xs font-medium">IMG_0921.jpg</span>
+<button class="text-white/80 hover:text-white"><span class="material-symbols-outlined !text-[20px]">star_border</span></button>
+</div>
+</div>
+<div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="w-5 h-5 rounded-full border-2 border-white bg-black/20 hover:bg-primary hover:border-primary transition-colors"></div>
+</div>
+</div>
+<!-- Photo Item (Selected) -->
+<div class="group relative aspect-square rounded-lg overflow-hidden bg-surface-dark cursor-pointer ring-offset-2 ring-offset-background-dark ring-2 ring-primary">
+<img alt="Tropical beach with turquoise water and white sand" class="w-full h-full object-cover" data-alt="Tropical beach with turquoise water and white sand" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDkB0f8017KR-l5lSIhzzgYZ58Bg18l76UX3aqe03eiV66rMcg68laosqEfJjIo9Jmsr20VKuDBlB4SZfVohevLwj7WoaK3z3W8OYHEuyIp9tE1rNkJ6FlAm99frJfJ4hA9aW6rVSoshmJY8VAVFU8LDWqPzfledKpPoGdtHCR0qZH-xKJyK_T3FxtxCkRemRzDry8gDccuBA_QU-3X4Y8o3OtkukySFZNwH5M-1uBlalW3q50s7Tx6QpEFW0g6VH4ZxGT4xoj9sIM"/>
+<div class="absolute inset-0 bg-primary/10 border-4 border-primary/0 pointer-events-none"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-100 transition-opacity flex flex-col justify-end p-3">
+<div class="flex justify-between items-end">
+<span class="text-white text-xs font-medium">IMG_0922.jpg</span>
+<button class="text-yellow-400 hover:text-yellow-300"><span class="material-symbols-outlined !text-[20px] fill-current">star</span></button>
+</div>
+</div>
+<div class="absolute top-2 right-2">
+<div class="w-5 h-5 rounded-full border-2 border-primary bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-white !text-[14px]">check</span>
+</div>
+</div>
+</div>
+<!-- Photo Item -->
+<div class="group relative aspect-square rounded-lg overflow-hidden bg-surface-dark cursor-pointer ring-offset-2 ring-offset-background-dark focus-within:ring-2 focus-within:ring-primary">
+<img alt="Venice canal with gondolas and old buildings" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" data-alt="Venice canal with gondolas and old buildings" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA5YbDIg03P4gAPcTB8hUv999WY6ycW37jY_6z9HwBM-_bMnQ3vjXeLWR2Ebyg6WRZoJj20m4Zq3pc95esY3GZU6qw8h1UIYtq7_Sf6gkZTAzGsvt1KlLfB1y5MCud06JGvXl2AGJBg4HNDMIwigkt1kGWCkZJY_RBhOoctWSC44FXJkbnI2Liy18qWEuUpbyGX3Gd4kwZDXsBQMFHZAnyRQ3O9xWGRDYzlNEUN5OEIS81-x8WzwxeBeQJOgh2STt_JxHTgFzxJHFE"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+<div class="flex justify-between items-end">
+<span class="text-white text-xs font-medium">IMG_0923.jpg</span>
+<button class="text-white/80 hover:text-white"><span class="material-symbols-outlined !text-[20px]">star_border</span></button>
+</div>
+</div>
+<div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="w-5 h-5 rounded-full border-2 border-white bg-black/20 hover:bg-primary hover:border-primary transition-colors"></div>
+</div>
+</div>
+<!-- Photo Item -->
+<div class="group relative aspect-square rounded-lg overflow-hidden bg-surface-dark cursor-pointer ring-offset-2 ring-offset-background-dark focus-within:ring-2 focus-within:ring-primary">
+<img alt="Greek island architecture with blue domes" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" data-alt="Greek island architecture with blue domes" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDrR2d2triSwUNyKjp6u1fxj2uO-LR_kGk_jvl-kteRoSWn9ceGpU0MCh9tMkMmZTrmf3yBiErpA_d1C6Hb5FU9jqofBOyDzJQnMRG0WgPBRO11sdoOllxBikz5otJA1oArU8ZqxmGBGHXlWW6HoEt_tac8BajGb-16bXYVTE2SvQANIuLpG_PscD7QvrwD4Aeu5-hTkbMWhYzsYeeOVBByIllwuG-hZQDcr5ql3GhKzDb2k3yMvnpdD2g-lD3lcjqKRHKeJXYWClA"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+<div class="flex justify-between items-end">
+<span class="text-white text-xs font-medium">IMG_0924.jpg</span>
+<button class="text-white/80 hover:text-white"><span class="material-symbols-outlined !text-[20px]">star_border</span></button>
+</div>
+</div>
+<div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="w-5 h-5 rounded-full border-2 border-white bg-black/20 hover:bg-primary hover:border-primary transition-colors"></div>
+</div>
+</div>
+<!-- Photo Item -->
+<div class="group relative aspect-square rounded-lg overflow-hidden bg-surface-dark cursor-pointer ring-offset-2 ring-offset-background-dark focus-within:ring-2 focus-within:ring-primary">
+<img alt="Cinque Terre colorful coastal village" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" data-alt="Cinque Terre colorful coastal village" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAfES6G-9O3liaPGP2X1HBKm4ZfFiADusQd1mZW20RmiRzH18Py5qbXHR5JW1A2QK4rctJxlNfto9vKSaqbOb3fNKQCv9_d-zwG9PhvI4DqsuBqGQYXxB68WXCleys166GJs5AjfwCJDrxyG8MssoqpPK7cDBgMlc7rNwusbKxKWoMKy3IonX9NLeHrhfQiXN9BhTz5ZGw_4jaJZBedfCOCBZ7Qgv1WGzgj9x5Yr3C0p_Ns9qwHREZpbnB4nFU6Ulqk7j93XFjQrIc"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+<div class="flex justify-between items-end">
+<span class="text-white text-xs font-medium">IMG_0925.jpg</span>
+<button class="text-white/80 hover:text-white"><span class="material-symbols-outlined !text-[20px]">star_border</span></button>
+</div>
+</div>
+<div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="w-5 h-5 rounded-full border-2 border-white bg-black/20 hover:bg-primary hover:border-primary transition-colors"></div>
+</div>
+</div>
+<!-- Photo Item (Video) -->
+<div class="group relative aspect-square rounded-lg overflow-hidden bg-surface-dark cursor-pointer ring-offset-2 ring-offset-background-dark focus-within:ring-2 focus-within:ring-primary">
+<img alt="Sunny beach palm trees view" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" data-alt="Sunny beach palm trees view" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8OdZr9CvuXrL5n7lu0VkwGZHLJh57soCNIZuecQo6WxqL2247pnxsAKwFkz0ggMQOyfElbIZSzp7OceP640zjM9ED2K17fveOuDVUEayTnUYslC5na8CAHN-c1qJV6ogaUnBJRT7zw5TlXM3RivHEOH358B0Q4mKzThyjOUbPdFMMvHXu_MTAa2ESOCBj2XZj-d9PexxwfO3PEYAvLZ0hi6n58p6FiKGEwG01LHTlak6EuHg0fyD8gn4rQ_6CMwCtmrZfyc89d1c"/>
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+<div class="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-white !text-[24px]">play_arrow</span>
+</div>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+<div class="flex justify-between items-end">
+<span class="text-white text-xs font-medium">VID_0041.mp4</span>
+<span class="text-white/70 text-xs">0:45</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Group 2: Project Alpha -->
+<div class="mb-10">
+<div class="flex items-center gap-3 mb-4 sticky top-0 z-10 py-2 bg-background-light dark:bg-background-dark/95 backdrop-blur-sm border-b border-transparent">
+<h2 class="text-xl font-bold text-slate-900 dark:text-white">2023 - Project Alpha</h2>
+<span class="text-sm text-slate-500">Jul 10 - Jul 15 • 89 items</span>
+<div class="h-px bg-border-dark flex-1 ml-4"></div>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+<!-- Photo Item -->
+<div class="group relative aspect-square rounded-lg overflow-hidden bg-surface-dark cursor-pointer ring-offset-2 ring-offset-background-dark focus-within:ring-2 focus-within:ring-primary">
+<img alt="Modern corporate meeting room" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" data-alt="Modern corporate meeting room" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC53l-_LN3eZcr-z4aGmZ1deCktE0g5SXCsTJ7BV9KeqMsmrVwX_HRMqMHa5qG8SJSGTvVecM1_I3Hvq7sQcv2v2i-f0Ao9Wi2NxEJq8rC5lNiVU4wgMqvmpuONIW9OWSvz1zgchi3o9tPzexs0Zk1pZf4VszE42HUVIn228Ri3k_ZoJyxga5FVXy_5zfJ9MbRCShgHvT7OWXXKbq8HalyL2UPzGHYB4CTQARXzthJRdNpQPVfyT-mOHi8QYVO85C8mck8McUxH5SY"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+<div class="flex justify-between items-end">
+<span class="text-white text-xs font-medium">IMG_0811.jpg</span>
+<button class="text-white/80 hover:text-white"><span class="material-symbols-outlined !text-[20px]">star_border</span></button>
+</div>
+</div>
+<div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="w-5 h-5 rounded-full border-2 border-white bg-black/20 hover:bg-primary hover:border-primary transition-colors"></div>
+</div>
+</div>
+<!-- Photo Item -->
+<div class="group relative aspect-square rounded-lg overflow-hidden bg-surface-dark cursor-pointer ring-offset-2 ring-offset-background-dark focus-within:ring-2 focus-within:ring-primary">
+<img alt="Team brainstorming with sticky notes" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" data-alt="Team brainstorming with sticky notes" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA5eBFNSdyTTlceBDTf5Zb6Ul7phZDXQJAqITKd7JbuPmXjcvLMFqqrXmDs_X34R6He1fHgK4NJMhjVW-ViKfX9XUNpJQZ9gFaT-lhhTOwG8MjSASkpyascLloZVwtAlGfO7VIlfwBoBaqd9Hgjlq8ioPxedy4_PukF8Xp__mfh-FuaejoxyFkxjPuZaFvFAPQsUYrhHtqlFJgJr5Bgf1d8SVqj9x2vfHxVXnwGiYxoQVKKMymQoqbj9i5HgST3JOztU_OUMgP6yX4"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+<div class="flex justify-between items-end">
+<span class="text-white text-xs font-medium">IMG_0812.jpg</span>
+<button class="text-white/80 hover:text-white"><span class="material-symbols-outlined !text-[20px]">star_border</span></button>
+</div>
+</div>
+<div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="w-5 h-5 rounded-full border-2 border-white bg-black/20 hover:bg-primary hover:border-primary transition-colors"></div>
+</div>
+</div>
+<!-- Photo Item -->
+<div class="group relative aspect-square rounded-lg overflow-hidden bg-surface-dark cursor-pointer ring-offset-2 ring-offset-background-dark focus-within:ring-2 focus-within:ring-primary">
+<img alt="Business analysis graphs on tablet" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" data-alt="Business analysis graphs on tablet" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBhf2cwr-dMmCc9XcGFBbd5FU_xs_d2DRLLaKCV_xzEYB_H_f5HKaFWoMYDvH7P1UHXr0UFs5jiwkZtMV2G4bCCYbfMhu-xAJsHyMJHbPW_wv0GDMLblDO7lPKE3Yo6uB3s62ats8IeOlZVUSdxpNGmBC9gfCqQIROMVd_ov1I3IFvmswY_MB5CQGrfJbyBmRGkyvYJ9jI5xLQPUkBNHffqLWO7OS5eQfp3OsQbnd6RfpQGTwx3lJ5PsiNS_JMWWGf0xQBefuNwcVg"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+<div class="flex justify-between items-end">
+<span class="text-white text-xs font-medium">IMG_0813.jpg</span>
+<button class="text-white/80 hover:text-white"><span class="material-symbols-outlined !text-[20px]">star_border</span></button>
+</div>
+</div>
+<div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="w-5 h-5 rounded-full border-2 border-white bg-black/20 hover:bg-primary hover:border-primary transition-colors"></div>
+</div>
+</div>
+<!-- Photo Item -->
+<div class="group relative aspect-square rounded-lg overflow-hidden bg-surface-dark cursor-pointer ring-offset-2 ring-offset-background-dark focus-within:ring-2 focus-within:ring-primary">
+<img alt="Company logo on modern building facade" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" data-alt="Company logo on modern building facade" loading="lazy" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAhP2l1poj-4VqnsFZgyQwbgxrIo-6XNX1qPc5fub4u9-MxWnhXRu-Ffxt6KPCIl3QZw9F-Mn_CD7X-pOzzXZe6YZyZEOUg1AQ4cr9GDUKjbIGpj_cyGFEvdnPVJy8xZfpxZi_5-LJfUygFVPqeskwmsfRWdGNP8gqbIj_w7hNZ6ihCX2Amc5SogoaMTnF3FyMDk6HZsx5SyxQeRTR9sRJQBfMiDchrTu0g-eZw7seI3OuqlVttM31dySStq1MoYOPym-3f4auvA7Q"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+<div class="flex justify-between items-end">
+<span class="text-white text-xs font-medium">IMG_0814.jpg</span>
+<button class="text-white/80 hover:text-white"><span class="material-symbols-outlined !text-[20px]">star_border</span></button>
+</div>
+</div>
+<div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="w-5 h-5 rounded-full border-2 border-white bg-black/20 hover:bg-primary hover:border-primary transition-colors"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer / Status Bar (at bottom of scroll) -->
+<div class="flex justify-center pb-8 pt-4">
+<span class="text-xs text-slate-500 font-medium bg-surface-active/50 px-4 py-1.5 rounded-full">End of library</span>
+</div>
+</div>
+<!-- Timeline Overlay (Right side of grid) -->
+<div class="absolute right-2 top-16 bottom-4 w-10 flex flex-col items-center justify-center pointer-events-none">
+<div class="bg-surface-dark/80 backdrop-blur-md rounded-full py-2 px-1 flex flex-col items-center gap-4 border border-border-dark pointer-events-auto">
+<button class="w-1 h-1 rounded-full bg-slate-500 hover:bg-primary hover:scale-150 transition-all"></button>
+<button class="w-1 h-1 rounded-full bg-slate-500 hover:bg-primary hover:scale-150 transition-all"></button>
+<div class="text-[10px] text-slate-400 font-bold -rotate-90 py-2">2023</div>
+<button class="w-2 h-2 rounded-full bg-primary ring-2 ring-primary/30"></button>
+<button class="w-1 h-1 rounded-full bg-slate-500 hover:bg-primary hover:scale-150 transition-all"></button>
+<div class="text-[10px] text-slate-400 font-bold -rotate-90 py-2">2022</div>
+<button class="w-1 h-1 rounded-full bg-slate-500 hover:bg-primary hover:scale-150 transition-all"></button>
+<button class="w-1 h-1 rounded-full bg-slate-500 hover:bg-primary hover:scale-150 transition-all"></button>
+</div>
+</div>
+</main>
+<!-- Right Inspector Panel (Collapsible/Optional) -->
+<aside class="w-72 border-l border-border-dark bg-surface-dark dark:bg-[#161e2e] flex flex-col hidden xl:flex shrink-0">
+<div class="p-4 border-b border-border-dark">
+<h3 class="text-sm font-bold text-white mb-1">IMG_0922.jpg</h3>
+<p class="text-xs text-slate-400">July 12, 2023 • 2.4 MB</p>
+</div>
+<!-- Preview Map -->
+<div class="h-48 bg-slate-800 relative group overflow-hidden">
+<img alt="Map view of Zurich location" class="w-full h-full object-cover opacity-60 mix-blend-overlay" data-location="Zurich, Switzerland" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVFpegS8bIIQyGK3J7nLGd2u0jy7FhSZPypctS2BAKsrDJLtGLojkA9kS6ledmKdMI-DBJbyZlWfb_vtjxdodZjJG4Dh8wZ_n55q7wIjRQwBeNQXblj9bVOqqCWWwHESwRirxr-E_lrNDkKYkV-xZWbsK22BPmlhzC7RFNWrD__ty6dcMiFyDYJC-A3YtFfbn8LPlOThtF9mNjUr2UwdB4YvjFZWMTzYUreXqz7pKu35tuZQBxnLdfqnVALlzbXhtQ8-MaaVST8rI"/>
+<div class="absolute inset-0 bg-primary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-white drop-shadow-lg !text-[32px]">location_on</span>
+</div>
+<div class="absolute bottom-2 left-2 right-2 bg-black/60 backdrop-blur-sm rounded px-2 py-1 text-xs text-white truncate">
+                    Zurich, Switzerland
+                </div>
+</div>
+<!-- EXIF Data -->
+<div class="flex-1 overflow-y-auto p-4 space-y-4">
+<div>
+<h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Properties</h4>
+<div class="grid grid-cols-2 gap-y-2 text-xs">
+<span class="text-slate-400">Dimensions</span>
+<span class="text-slate-200 text-right">4032 x 3024</span>
+<span class="text-slate-400">Camera</span>
+<span class="text-slate-200 text-right">Sony A7III</span>
+<span class="text-slate-400">ISO</span>
+<span class="text-slate-200 text-right">100</span>
+<span class="text-slate-400">Aperture</span>
+<span class="text-slate-200 text-right">f/2.8</span>
+</div>
+</div>
+<div>
+<h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">People</h4>
+<div class="flex flex-wrap gap-2">
+<div class="flex items-center gap-1.5 bg-surface-active rounded-full pl-1 pr-2 py-0.5 border border-border-dark">
+<div class="w-5 h-5 rounded-full bg-cover" data-alt="Face of a smiling woman" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDqBXboJOJefbeR26SJVAbBm95w1mRJrsenetjbqhO_W_B9UIXqmdmwcqBC1Um3CAXaYa1jdjB3qGZTn6sDFbmOlAHgRk49ask1kOngdqa8Z1y0rGI65Gh6ewPO2ig98L_zL2IEIDvBEwobCGEcaf1NKoiAgf2iSrQv6Rvz2EVGT0mJYwapJtuWq9gPfeTjaBJFxGGqHM0lHZB7JFp0aKyCfHCBoAG8qcAWbeAhZupabyu-IR4KgEXta3qT-AuOmAvt-qDS1uxz5Dc')"></div>
+<span class="text-xs text-slate-200">Sarah</span>
+</div>
+<button class="flex items-center gap-1 bg-surface-active rounded-full px-2 py-1 border border-border-dark hover:text-white hover:border-slate-500 transition-colors">
+<span class="material-symbols-outlined !text-[14px]">add</span>
+<span class="text-xs text-slate-400">Add</span>
+</button>
+</div>
+</div>
+<div>
+<h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Tags</h4>
+<div class="flex flex-wrap gap-2">
+<span class="bg-primary/20 text-primary-300 text-xs px-2 py-1 rounded">Nature</span>
+<span class="bg-primary/20 text-primary-300 text-xs px-2 py-1 rounded">Vacation</span>
+<span class="bg-surface-active text-slate-400 border border-slate-600 border-dashed text-xs px-2 py-1 rounded cursor-pointer hover:text-white hover:border-slate-400 transition-colors">+ Add Tag</span>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="p-4 border-t border-border-dark grid grid-cols-2 gap-2">
+<button class="bg-surface-active hover:bg-slate-600 text-white py-2 rounded-lg text-sm font-medium transition-colors">Edit</button>
+<button class="bg-surface-active hover:bg-slate-600 text-white py-2 rounded-lg text-sm font-medium transition-colors">Share</button>
+</div>
+</aside>
+</div>
+</body></html>
