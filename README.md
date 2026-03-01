@@ -32,37 +32,29 @@ SmartGallery completely fundamentally changes how local files are organized. Ins
 When you add a local directory for SmartGallery to watch, the backend processing engine spins up. The following Mermaid map details exactly how a regular photograph gets transformed into a robust, searchable vector within the application.
 
 ```mermaid
-graph TD;
-    %% File System Monitoring block
-    subgraph Files
-        FS[File System Events] -->|WatchService| Watcher[Java FileSystemWatcher]
-        Watcher -- Debounce --> Queue[Indexed Queue]
-    end
+flowchart LR
 
-    %% Parsing Block
-    subgraph Parsing Engine
-        Queue -->|File| MD[Metadata Extractor]
-        MD --> GPS[Lat/Long GeoTags]
-        MD --> EXIF[Hardware ISO/Lens/Make]
-        MD --> BD[Basic File Info]
-    end
+subgraph App["Image Indexing Application"]
+    Watcher["File Watcher Component"]
+    Parser["Metadata Parser Component"]
+    AI["AI Inference Component"]
+    Mapper["ID Mapper"]
+end
 
-    %% AI Pipeline
-    subgraph AI Pipeline
-        Queue -->|BufferedImage| PIP[Image Preprocessing]
-        PIP -->|Center Crop & Normalize| ONNX[ONNX Runtime]
-        Model[Xenova/clip-vit-base-patch32] -.-> ONNX
-        ONNX -->|Generates| VEC[768-D Float Vector]
-    end
+subgraph Storage["Storage"]
+    DB[(H2 Database)]
+    VS[(Vector Store)]
+end
 
-    %% Database storage
-    subgraph Storage
-        GPS --> DB[(H2 SQL Database)]
-        EXIF --> DB
-        BD --> DB
-        VEC --> VS[(In-Memory Vector Store)]
-        DB -.->|ID Mapping| VS
-    end
+Model["CLIP ONNX Model"]
+
+Watcher --> Parser
+Watcher --> AI
+AI --> Mapper
+Parser --> DB
+Mapper --> VS
+DB --> Mapper
+Model -.-> AI
 ```
 
 ### The Search Process
