@@ -30,6 +30,8 @@ const SmartGallery = (() => {
     activeTab: 'models',  // settings modal active tab
     watchedFolders: [],   // Added as per diff
     currentLightboxIndex: -1, // Added as per diff
+    mapVisible: true,     // whether map is shown in UI
+    exifVisible: true,    // Global EXIF display toggle
   };
 
   // ─── DOM refs (jQuery) ───────────────────────────────────────────────
@@ -54,6 +56,7 @@ const SmartGallery = (() => {
     loadSidebarFolders();
     fetchAllPhotos();
     initInfiniteScroll();
+    loadAdvancedSettings();
 
     // Poll model + index status every 8 seconds
     setInterval(loadModelStatus, 8000);
@@ -129,25 +132,74 @@ const SmartGallery = (() => {
       }
     });
 
-    // Close detail panel if clicking outside it
-    $(document).on('click', e => {
-      if ($detailPanel.hasClass('visible') && $(e.target).closest('#detail-panel, .gallery-card, .header-actions').length === 0) {
-        closeDetailPanel();
+    // Close detail panel if clicking outside it (including clicking images)
+    $(document).on('mousedown', e => {
+      const $panel = $('#detail-panel');
+      if ($panel.hasClass('visible')) {
+        // If clicking outside the panel and not a right-click
+        if ($(e.target).closest('#detail-panel').length === 0 && e.button !== 2) {
+          closeDetailPanel();
+        }
       }
     });
 
-    // Toggle zoom on clicking the image
-    $('#lightbox-img').on('click', function (e) {
+    // ─── Lightbox Zoom & Drag-to-Pan ───
+    let lbDrag = { isDragging: false, isMoved: false, startX: 0, startY: 0, translateX: 0, translateY: 0 };
+    const $lbImg = $('#lightbox-img');
+
+    $lbImg.on('mousedown pointerdown touchstart', function (e) {
+      if (!$lbImg.hasClass('zoomed')) return; // Only drag when zoomed
+      e.preventDefault(); // Prevent native image drag
+      lbDrag.isDragging = true;
+      lbDrag.isMoved = false;
+      const clientX = e.clientX || (e.originalEvent.touches && e.originalEvent.touches[0].clientX);
+      const clientY = e.clientY || (e.originalEvent.touches && e.originalEvent.touches[0].clientY);
+      lbDrag.startX = clientX - lbDrag.translateX;
+      lbDrag.startY = clientY - lbDrag.translateY;
+      $lbImg.addClass('dragging');
+    });
+
+    $(window).on('mousemove pointermove touchmove', function (e) {
+      if (!lbDrag.isDragging) return;
+      lbDrag.isMoved = true;
+      const clientX = e.clientX || (e.originalEvent.touches && e.originalEvent.touches[0].clientX);
+      const clientY = e.clientY || (e.originalEvent.touches && e.originalEvent.touches[0].clientY);
+      lbDrag.translateX = clientX - lbDrag.startX;
+      lbDrag.translateY = clientY - lbDrag.startY;
+
+      // Apply drag translation. The image is scaled (x2.5) via CSS, so we just translate it.
+      $lbImg.css('transform', `scale(2.5) translate(${lbDrag.translateX / 2.5}px, ${lbDrag.translateY / 2.5}px)`);
+    });
+
+    $(window).on('mouseup pointerup touchend', function (e) {
+      if (lbDrag.isDragging) {
+        lbDrag.isDragging = false;
+        $lbImg.removeClass('dragging');
+        // If it was a drag, stop here so click handler doesn't zoom out
+      }
+    });
+
+    $lbImg.on('click', function (e) {
       e.stopPropagation(); // prevent modal close
-      const $this = $(this);
-      if ($this.hasClass('zoomed')) {
-        $this.removeClass('zoomed');
-        setTimeout(() => $this.css('transform-origin', 'center center'), 250);
+      if (lbDrag.isMoved) {
+        // Was a drag, not a click. Don't toggle zoom.
+        lbDrag.isMoved = false;
+        return;
+      }
+
+      if ($lbImg.hasClass('zoomed')) {
+        // Zoom out
+        $lbImg.removeClass('zoomed').css('transform', '');
+        lbDrag.translateX = 0;
+        lbDrag.translateY = 0;
       } else {
-        const offset = $this.offset();
-        const xP = ((e.pageX - offset.left) / $this.width()) * 100;
-        const yP = ((e.pageY - offset.top) / $this.height()) * 100;
-        $this.css('transform-origin', `${xP}% ${yP}%`).addClass('zoomed');
+        // Zoom in
+        const offset = $lbImg.offset();
+        // Calculate click point relative to center to determine initial translation matrix
+        // For simplicity: just zoom into center and allow user to drag. Or calculate offset:
+        const xP = ((e.pageX - offset.left) / $lbImg.width()) * 100;
+        const yP = ((e.pageY - offset.top) / $lbImg.height()) * 100;
+        $lbImg.css('transform-origin', `${xP}% ${yP}%`).addClass('zoomed');
       }
     });
 
@@ -186,8 +238,8 @@ const SmartGallery = (() => {
       }
     });
 
-    // Date filter in sidebar
-    $('#sidebar-date-from, #sidebar-date-to').on('change', applyDateFilter);
+    // Global context menu disable
+    $(document).on('contextmenu', e => e.preventDefault());
 
     // Close modal on Escape
     $(document).on('keydown', e => {
@@ -358,12 +410,8 @@ const SmartGallery = (() => {
         if (!e.ctrlKey && e.button === 0) {
           if (clickTimer) clearTimeout(clickTimer);
           clickTimer = setTimeout(() => {
-            if (state.selectedId === item.id) {
-              closeDetailPanel();
-            } else {
-              selectImage(item, index, false);
-            }
-          }, 250); // wait briefly to see if it's a double click
+            selectImage(item, index, false);
+          }, 250);
         }
       });
 
@@ -384,30 +432,14 @@ const SmartGallery = (() => {
         toggleFavorite(item, this);
       });
 
+      // Handle Right Click (Select and Show Detail Panel)
       card.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        selectImage(item, index); // auto-select on right click
-        const $menu = $('#custom-context-menu');
-        // keep within bounds 
-        let x = e.pageX;
-        let y = e.pageY;
-        if (x + 200 > window.innerWidth) x = window.innerWidth - 210;
-        if (y + 150 > window.innerHeight) y = window.innerHeight - 160;
-        $menu.css({ top: y + 'px', left: x + 'px' }).show();
+        selectImage(item, index, true);
       });
+
       fragment.appendChild(card);
     });
-
-    // Close right click menu on click outside
-    $(document).on('click contextmenu', (e) => {
-      // If clicking inside menu or opening menu on card, ignore
-      if ($(e.target).closest('#custom-context-menu, .gallery-card').length === 0 || e.type === 'click') {
-        $('#custom-context-menu').hide();
-      }
-    });
-
-    // Disable default browser right-click entirely
-    $(document).on('contextmenu', e => e.preventDefault());
 
     $grid[0].appendChild(fragment);
     $grid[0].style.setProperty('--cols', state.thumbCols);
@@ -415,50 +447,99 @@ const SmartGallery = (() => {
 
   // ─── Image Selection + Detail Panel ─────────────────────────────────
   function selectImage(item, idx, openSidebar = true) {
-    if (item.id !== state.selectedId) {
-      state.selectedId = item.id;
-      state.currentLightboxIndex = idx;
+    state.selectedId = item.id;
+    state.currentLightboxIndex = idx;
 
-      // Update highlight
-      $('.gallery-card').removeClass('selected');
-      $(`#card-${item.id}`).addClass('selected');
+    // Update highlight
+    $('.gallery-card').removeClass('selected');
+    $(`#card-${item.id}`).addClass('selected');
 
-      // Populate detail panel (for right sidebar)
-      $('#detail-filename').text(item.fileName || 'Unknown');
-      $('#detail-date').text(formatDate(item.lastModified));
-      $('#detail-thumb').attr('src', item.thumbUrl).show();
-      const score = item.score || 0;
-      $('#detail-score-bar').css('width', Math.round(score * 100) + '%');
-      $('#detail-score-text').text(score > 0 ? (Math.round(score * 10000) / 100) + '% similarity' : 'N/A');
-      $('#dp-size').text(formatSize(item.fileSize));
-      $('#dp-dims').text(item.width && item.height ? item.width + '×' + item.height : '—');
-      $('#dp-date').text(formatDate(item.lastModified));
-      $('#dp-indexed').text(formatDate(item.indexedAt));
-      $('#dp-path').text(item.filePath || '—');
+    // Populate detail panel (for right sidebar)
+    $('#detail-filename').text(item.fileName || 'Unknown');
+    $('#detail-date').text(formatDate(item.lastModified));
 
-      // Tags
-      let tagsHtml = '<span class="tag-add-btn" onclick="SmartGallery.addTagToSelected()">+ Add Tag</span>';
+    const $dThumb = $('#detail-thumb');
+    $dThumb.attr('src', item.thumbUrl).show();
+    $dThumb.toggleClass('blurred-image', !!item.blurred);
+
+    const score = item.score || 0;
+    $('#detail-score-bar').css('width', Math.round(score * 100) + '%');
+    $('#detail-score-text').text(score > 0 ? (Math.round(score * 10000) / 100) + '% similarity' : 'N/A');
+    $('#dp-size').text(formatSize(item.fileSize));
+    $('#dp-dims').text(item.width && item.height ? item.width + '×' + item.height : '—');
+    $('#dp-date').text(formatDate(item.lastModified));
+    $('#dp-indexed').text(formatDate(item.indexedAt));
+    $('#dp-path').text(item.filePath || '—');
+
+    // Update Privacy Toggle UI
+    const $pBtn = $('#privacy-toggle-btn');
+    if (item.blurred) {
+      $pBtn.addClass('active').find('.material-symbols-outlined').text('visibility_off');
+    } else {
+      $pBtn.removeClass('active').find('.material-symbols-outlined').text('visibility');
+    }
+
+    // EXIF + Map
+    const $mapSection = $('#dp-map-section');
+    const $exifSection = $('#dp-exif-section');
+
+    if (item.blurred || !state.exifVisible) {
+      $mapSection.hide();
+      $exifSection.hide();
+    } else {
+      if (state.mapVisible && item.latitude && item.longitude) {
+        $mapSection.show();
+        if (!window.detailMap) {
+          window.detailMap = L.map('detail-map').setView([item.latitude, item.longitude], 13);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+          }).addTo(window.detailMap);
+          window.detailMapMarker = L.marker([item.latitude, item.longitude]).addTo(window.detailMap);
+        } else {
+          window.detailMap.setView([item.latitude, item.longitude], 13);
+          window.detailMapMarker.setLatLng([item.latitude, item.longitude]);
+          setTimeout(() => window.detailMap.invalidateSize(), 150);
+        }
+      } else {
+        $mapSection.hide();
+      }
+
+      const $exifGrid = $('#dp-exif-grid');
+      $exifGrid.empty();
+      let hasExif = false;
       if (item.extraJson) {
         try {
           const extra = JSON.parse(item.extraJson);
-          const tags = extra.tags || [];
-          tags.forEach(t => {
-            if (t === '__sys_favorite__') return;
-            const delBtn = `<span class="remove-tag" onclick="SmartGallery.removeTagFromSelected('${escAttr(t)}')">×</span>`;
-            tagsHtml = `<span class="tag-badge">${escHtml(t)}${delBtn}</span>` + tagsHtml;
-          });
-        } catch (e) { /* ignore */ }
+          if (extra.exif && Object.keys(extra.exif).length > 0) {
+            for (const [k, v] of Object.entries(extra.exif)) {
+              $exifGrid.append(`<span class="detail-key">${escHtml(k)}</span><span class="detail-val" style="text-align:right;">${escHtml(v)}</span>`);
+            }
+            hasExif = true;
+          }
+        } catch (e) { }
       }
-      $('#detail-tags').html(tagsHtml);
+      if (hasExif) $exifSection.show();
+      else $exifSection.hide();
     }
 
-    // Force close sidebar if image is blurred for privacy
-    if (item.blurred) openSidebar = false;
+    // Tags
+    let tagsHtml = '<span class="tag-add-btn" onclick="SmartGallery.addTagToSelected()">+ Add Tag</span>';
+    if (item.extraJson) {
+      try {
+        const extra = JSON.parse(item.extraJson);
+        const tags = extra.tags || [];
+        tags.forEach(t => {
+          if (t === '__sys_favorite__') return;
+          const delBtn = `<span class="remove-tag" onclick="SmartGallery.removeTagFromSelected('${escAttr(t)}')">×</span>`;
+          tagsHtml = `<span class="tag-badge">${escHtml(t)}${delBtn}</span>` + tagsHtml;
+        });
+      } catch (e) { /* ignore */ }
+    }
+    $('#detail-tags').html(tagsHtml);
 
     if (openSidebar) {
       $detailPanel.addClass('visible');
-    } else {
-      $detailPanel.removeClass('visible');
     }
   }
 
@@ -518,7 +599,7 @@ const SmartGallery = (() => {
     const $img = $('#lightbox-img');
     const $caption = $('#lightbox-caption');
 
-    $img.attr('src', '').removeClass('zoomed').css('transform-origin', 'center center'); // clear previous and reset zoom
+    $img.attr('src', '').removeClass('zoomed').css('transform', '').css('transform-origin', 'center center'); // clear previous and reset zoom
 
     // Append timestamp to prevent aggressive browser caching on the full res image route
     $img.attr('src', '/api/images/' + item.id + '/full?t=' + Date.now());
@@ -528,7 +609,7 @@ const SmartGallery = (() => {
 
   function closeLightbox() {
     $('#lightbox').fadeOut(150);
-    $('#lightbox-img').removeClass('zoomed').css('transform-origin', 'center center');
+    $('#lightbox-img').removeClass('zoomed').css('transform', '').css('transform-origin', 'center center');
   }
 
   function navLightbox(direction) {
@@ -545,35 +626,11 @@ const SmartGallery = (() => {
   }
 
   function showDetailPanel(item) {
-    // This function is now mostly integrated into selectImage, but kept for backward compatibility if needed elsewhere.
-    // The main logic for populating the detail panel is in selectImage.
-    $detailPanel.addClass('visible');
-    $('#detail-filename').text(item.fileName || 'Unknown');
-    $('#detail-date').text(formatDate(item.lastModified));
-    $('#detail-thumb').attr('src', item.thumbUrl).show();
-    const score = item.score || 0;
-    $('#detail-score-bar').css('width', Math.round(score * 100) + '%');
-    $('#detail-score-text').text(score > 0 ? (Math.round(score * 10000) / 100) + '% similarity' : 'N/A');
-    $('#dp-size').text(formatSize(item.fileSize));
-    $('#dp-dims').text(item.width && item.height ? item.width + '×' + item.height : '—');
-    $('#dp-date').text(formatDate(item.lastModified));
-    $('#dp-indexed').text(formatDate(item.indexedAt));
-    $('#dp-path').text(item.filePath || '—');
-
-    // Tags
-    let tagsHtml = '<span class="tag-add-btn" onclick="SmartGallery.addTagToSelected()">+ Add Tag</span>';
-    if (item.extraJson) {
-      try {
-        const extra = JSON.parse(item.extraJson);
-        const tags = extra.tags || [];
-        tags.forEach(t => {
-          if (t === '__sys_favorite__') return;
-          const delBtn = `<span class="remove-tag" onclick="SmartGallery.removeTagFromSelected('${escAttr(t)}')">×</span>`;
-          tagsHtml = `<span class="tag-badge">${escHtml(t)}${delBtn}</span>` + tagsHtml;
-        });
-      } catch (e) { }
+    // Redirect to the modern, EXIF-rich selectImage function to ensure UI consistency
+    const idx = state.results.findIndex(r => r.id === item.id);
+    if (idx !== -1) {
+      selectImage(item, idx, true);
     }
-    $('#detail-tags').html(tagsHtml);
   }
 
   function navSelection(dir) {
@@ -786,19 +843,7 @@ const SmartGallery = (() => {
 
   // ─── Filters ─────────────────────────────────────────────────────────
   function buildFilters() {
-    const f = {};
-    const df = $('#sidebar-date-from').val();
-    const dt = $('#sidebar-date-to').val();
-    if (df) f.dateFrom = df;
-    if (dt) f.dateTo = dt;
-    return Object.keys(f).length ? f : null;
-  }
-
-  function applyDateFilter() {
-    const q = state.currentQuery;
-    state.offset = 0;
-    state.results = [];
-    if (q) { doSearch(q); } else { fetchAllPhotos(); }
+    return null;
   }
 
   // ─── View Modes ───────────────────────────────────────────────────────
@@ -957,11 +1002,51 @@ const SmartGallery = (() => {
 
   function switchTab(tab, el) {
     state.activeTab = tab;
-    $('.modal-tab').css({ color: 'var(--text-muted)', borderBottomColor: 'transparent' });
-    $(el).css({ color: 'var(--primary)', borderBottomColor: 'var(--primary)' });
+    $('.modal-tab').css({ color: 'var(--text-muted)', borderBottomColor: 'transparent', fontWeight: '500' });
+    $(el).css({ color: 'var(--primary)', borderBottomColor: 'var(--primary)', fontWeight: '600' });
     $('.tab-pane').hide();
     $('#tab-' + tab).show();
     if (tab === 'folders') loadFoldersList();
+    if (tab === 'advanced') loadAdvancedSettings();
+  }
+
+  function loadAdvancedSettings() {
+    $.getJSON('/api/settings/advanced', data => {
+      state.exifVisible = data.exifVisible;
+      state.mapVisible = data.mapVisible;
+      $('#exif-visible-toggle').prop('checked', data.exifVisible);
+      $('#map-visible-toggle').prop('checked', data.mapVisible);
+      $('#exif-parsing-toggle').prop('checked', data.exifEnabled);
+      $('#auto-indexing-toggle').prop('checked', data.autoIndexingEnabled);
+      $('#threshold-slider').val(data.searchThreshold);
+      $('#threshold-val').text(data.searchThreshold.toFixed(2));
+    });
+  }
+
+  function saveAdvancedSettings() {
+    const exifVisible = $('#exif-visible-toggle').is(':checked');
+    const mapVisible = $('#map-visible-toggle').is(':checked');
+    const exifEnabled = $('#exif-parsing-toggle').is(':checked');
+    const autoIndexingEnabled = $('#auto-indexing-toggle').is(':checked');
+    const searchThreshold = parseFloat($('#threshold-slider').val());
+
+    $.ajax({
+      url: '/api/settings/advanced',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ exifVisible, mapVisible, exifEnabled, autoIndexingEnabled, searchThreshold }),
+      success: () => {
+        state.exifVisible = exifVisible;
+        state.mapVisible = mapVisible;
+        showToast('Advanced settings saved', 'success');
+        // Refresh detail panel if open
+        if (state.selectedId) {
+          const item = state.results.find(res => res.id === state.selectedId);
+          if (item) selectImage(item, state.currentLightboxIndex, false);
+        }
+      },
+      error: () => showToast('Failed to save advanced settings', 'error')
+    });
   }
 
   function loadTokenStatus() {
@@ -1215,73 +1300,51 @@ const SmartGallery = (() => {
     });
   }
 
-  // ─── Context Menu Actions ───────────────────────────────────────────
-  function contextMenuAction(action) {
-    $('#custom-context-menu').hide();
+  // ─── Detail Panel Actions ───────────────────────────────────────────
+  function togglePrivacyBlur() {
     if (!state.selectedId) return;
+    const item = state.results.find(r => r.id === state.selectedId);
+    if (!item) return;
+    const newState = !item.blurred;
+    $.ajax({
+      url: '/api/images/' + item.id + '/blur?blurred=' + newState,
+      method: 'PATCH',
+      success: () => {
+        item.blurred = newState;
+        const $card = $('#card-' + item.id);
+        const $pBtn = $('#privacy-toggle-btn');
 
-    if (action === 'blur') {
-      const item = state.results.find(r => r.id === state.selectedId);
-      if (!item) return;
-      const newState = !item.blurred;
+        $card.find('img').toggleClass('blurred-image', newState);
+        if (newState) {
+          $card.append('<div class="blur-overlay"><span class="material-symbols-outlined" style="font-size:32px">visibility_off</span></div>');
+          $pBtn.addClass('active').find('.material-symbols-outlined').text('visibility_off');
+          showToast('Privacy blur applied', 'success');
+        } else {
+          $card.find('.blur-overlay').remove();
+          $pBtn.removeClass('active').find('.material-symbols-outlined').text('visibility');
+          showToast('Privacy blur removed', 'success');
+        }
+        // Refresh detail panel view for current item
+        selectImage(item, state.currentLightboxIndex);
+      },
+      error: () => showToast('Failed to toggle blur', 'error')
+    });
+  }
+
+  function deleteImage() {
+    if (!state.selectedId) return;
+    showConfirm('Are you sure you want to delete this image from the search index?', () => {
       $.ajax({
-        url: '/api/images/' + item.id + '/blur?blurred=' + newState,
-        method: 'PATCH',
+        url: '/api/images/' + state.selectedId, method: 'DELETE',
         success: () => {
-          item.blurred = newState;
-          const $card = $('#card-' + item.id);
-          $card.find('img').toggleClass('blurred-image', newState);
-          if (newState) {
-            $card.append('<div class="blur-overlay"><span class="material-symbols-outlined" style="font-size:32px">visibility_off</span></div>');
-            showToast('Privacy blur applied', 'success');
-          } else {
-            $card.find('.blur-overlay').remove();
-            showToast('Privacy blur removed', 'success');
-          }
-        },
-        error: () => showToast('Failed to toggle blur', 'error')
+          showToast('Image removed from index', 'info');
+          $('#card-' + state.selectedId).remove();
+          state.results = state.results.filter(r => r.id !== state.selectedId);
+          $resultCount.text(state.results.length);
+          $('#detail-panel').removeClass('visible');
+        }
       });
-    } else if (action === 'similar') {
-      const item = state.results.find(r => r.id === state.selectedId);
-      if (item && item.blurred) {
-        showToast('Cannot search similar for a blurred image', 'error');
-        return;
-      }
-      findSimilar();
-    } else if (action === 'favorite') {
-      // Append favorite tag
-      const item = state.results.find(r => r.id === state.selectedId);
-      let extra = {};
-      if (item?.extraJson) { try { extra = JSON.parse(item.extraJson); } catch (e) { } }
-      if (!extra.tags) extra.tags = [];
-      if (!extra.tags.includes('favorite')) {
-        extra.tags.push('favorite');
-        $.ajax({
-          url: '/api/images/' + state.selectedId + '/tags', method: 'PATCH',
-          contentType: 'application/json', data: JSON.stringify(extra),
-          success: () => {
-            if (item) item.extraJson = JSON.stringify(extra);
-            showToast('Added to favorites', 'success');
-            if ($detailPanel.hasClass('visible')) showDetailPanel(item); // refresh UI
-          }
-        });
-      } else {
-        showToast('Image is already a favorite', 'info');
-      }
-    } else if (action === 'delete') {
-      showConfirm('Are you sure you want to delete this image from the search index?', () => {
-        $.ajax({
-          url: '/api/images/' + state.selectedId, method: 'DELETE',
-          success: () => {
-            showToast('Image removed from index', 'info');
-            $('#card-' + state.selectedId).remove();
-            state.results = state.results.filter(r => r.id !== state.selectedId);
-            $resultCount.text(state.results.length);
-            $detailPanel.removeClass('visible');
-          }
-        });
-      });
-    }
+    });
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────
@@ -1321,11 +1384,13 @@ const SmartGallery = (() => {
     saveToken, clearToken, downloadModels, verifyModels,
     addFolder, removeFolder,
     addTagToSelected, findSimilar, openFile,
-    triggerReindexFromSettings, contextMenuAction,
+    triggerReindexFromSettings,
+    togglePrivacyBlur, deleteImage,
     closeLightbox,
     navLightbox,
     closeDetailPanel,
-    removeTagFromSelected
+    removeTagFromSelected,
+    saveAdvancedSettings
   };
 
 })();

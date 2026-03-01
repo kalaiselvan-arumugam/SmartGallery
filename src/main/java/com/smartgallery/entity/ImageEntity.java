@@ -68,6 +68,12 @@ public class ImageEntity {
     @Column(name = "is_blurred", nullable = false)
     private boolean isBlurred = false;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     // ───────────── constructors ─────────────
 
     public ImageEntity() {
@@ -185,5 +191,21 @@ public class ImageEntity {
 
     public void setBlurred(boolean blurred) {
         isBlurred = blurred;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 }

@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="/app.css" />
     <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
 
 <body>
@@ -89,13 +91,7 @@
 
                 <div class="sidebar-divider"></div>
 
-                <div class="sidebar-section">
-                    <div class="sidebar-label">Search Filters</div>
-                    <input id="sidebar-date-from" type="date" class="form-input"
-                        style="font-size:12px;padding:5px 8px;margin-bottom:6px" placeholder="From date" />
-                    <input id="sidebar-date-to" type="date" class="form-input" style="font-size:12px;padding:5px 8px"
-                        placeholder="To date" />
-                </div>
+
 
             </aside>
 
@@ -168,10 +164,6 @@
             <!-- ─── DETAIL PANEL ──────────────────────────────────────────────── -->
             <aside id="detail-panel">
                 <div class="detail-header" style="position:relative;">
-                    <button class="detail-close-btn" onclick="SmartGallery.closeDetailPanel()"
-                        style="position:absolute;top:-5px;right:-5px;background:none;border:none;color:var(--text-muted);cursor:pointer;padding:5px;">
-                        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
-                    </button>
                     <div class="detail-filename" id="detail-filename">—</div>
                     <div class="detail-date" id="detail-date">—</div>
                 </div>
@@ -193,6 +185,15 @@
                             <span class="detail-key">Indexed</span><span class="detail-val" id="dp-indexed">—</span>
                         </div>
                     </div>
+                    <div class="detail-section" id="dp-map-section" style="display:none;">
+                        <div class="detail-section-label">Location (EXIF)</div>
+                        <div id="detail-map"
+                            style="width:100%; height:160px; border-radius:8px; margin-top:8px; z-index:1;"></div>
+                    </div>
+                    <div class="detail-section" id="dp-exif-section" style="display:none;">
+                        <div class="detail-section-label">EXIF Details</div>
+                        <div class="detail-grid" id="dp-exif-grid"></div>
+                    </div>
                     <div class="detail-section">
                         <div class="detail-section-label">Tags</div>
                         <div class="tags-wrap" id="detail-tags">
@@ -205,12 +206,17 @@
                     </div>
                 </div>
                 <div class="detail-actions">
-                    <button class="btn-secondary btn-sm" onclick="SmartGallery.openFile()" title="Open original file">
-                        <span class="material-symbols-outlined" style="font-size:15px">open_in_new</span> Open
+                    <button class="privacy-toggle-btn" id="privacy-toggle-btn"
+                        onclick="SmartGallery.togglePrivacyBlur()" title="Toggle Privacy Blur">
+                        <span class="material-symbols-outlined">visibility</span>
                     </button>
-                    <button class="btn-secondary btn-sm" onclick="SmartGallery.findSimilar()"
+                    <button class="btn-secondary btn-sm btn-block" onclick="SmartGallery.findSimilar()"
                         title="Find visually similar images">
                         <span class="material-symbols-outlined" style="font-size:15px">find_replace</span> Similar
+                    </button>
+                    <button class="btn-danger btn-sm btn-block" onclick="SmartGallery.deleteImage()"
+                        title="Delete from Index">
+                        <span class="material-symbols-outlined" style="font-size:15px">delete</span> Delete
                     </button>
                 </div>
             </aside>
@@ -243,18 +249,23 @@
                 </button>
             </div>
 
+            <!-- ── Tabs ── -->
+            <div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 24px">
+                <button class="modal-tab active" data-tab="models" onclick="SmartGallery.switchTab('models',this)"
+                    style="padding:10px 16px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);background:none;border-top:none;border-left:none;border-right:none;cursor:pointer;margin-bottom:-1px">
+                    AI Models
+                </button>
+                <button class="modal-tab" data-tab="folders" onclick="SmartGallery.switchTab('folders',this)"
+                    style="padding:10px 16px;font-size:13px;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;cursor:pointer;margin-bottom:-1px">
+                    Folders
+                </button>
+                <button class="modal-tab" data-tab="advanced" onclick="SmartGallery.switchTab('advanced',this)"
+                    style="padding:10px 16px;font-size:13px;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;cursor:pointer;margin-bottom:-1px">
+                    Advanced
+                </button>
+            </div>
+
             <div class="modal-body">
-                <!-- ── Tabs ── -->
-                <div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 20px">
-                    <button class="modal-tab active" data-tab="models" onclick="SmartGallery.switchTab('models',this)"
-                        style="padding:10px 16px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);background:none;border-top:none;border-left:none;border-right:none;cursor:pointer;margin-bottom:-1px">
-                        AI Models
-                    </button>
-                    <button class="modal-tab" data-tab="folders" onclick="SmartGallery.switchTab('folders',this)"
-                        style="padding:10px 16px;font-size:13px;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;cursor:pointer;margin-bottom:-1px">
-                        Folders
-                    </button>
-                </div>
 
                 <!-- ── Models Tab ── -->
                 <div id="tab-models" class="tab-pane modal-cols">
@@ -316,7 +327,7 @@
                 </div>
 
                 <!-- ── Folders Tab ── -->
-                <div id="tab-folders" class="tab-pane" style="display:none;padding:20px">
+                <div id="tab-folders" class="tab-pane" style="display:none;padding:24px">
                     <div style="display:flex;gap:8px;margin-bottom:16px">
                         <input id="new-folder-input" class="form-input" type="text"
                             placeholder="C:\Users\me\Pictures or ./data/images" style="flex:1" />
@@ -331,34 +342,97 @@
                     </p>
                 </div>
 
+                <!-- ── Advanced Tab ── -->
+                <div id="tab-advanced" class="tab-pane" style="display:none;padding:24px">
+                    <div style="max-width:540px">
+
+                        <div
+                            style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px;border-bottom:1px solid var(--border)">
+                            <div style="flex:1;padding-right:16px">
+                                <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Show/Hide EXIF
+                                    Data</h4>
+                                <p class="form-hint" style="margin:4px 0 0">Show or hide camera info in the image detail
+                                    panel.</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="exif-visible-toggle"
+                                    onchange="SmartGallery.saveAdvancedSettings()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div
+                            style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)">
+                            <div style="flex:1;padding-right:16px">
+                                <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Show/Hide Map</h4>
+                                <p class="form-hint" style="margin:4px 0 0">Show or hide the location map in the detail
+                                    panel (Dependent on EXIF).</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="map-visible-toggle"
+                                    onchange="SmartGallery.saveAdvancedSettings()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div
+                            style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)">
+                            <div style="flex:1;padding-right:16px">
+                                <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Extract EXIF
+                                    metadata</h4>
+                                <p class="form-hint" style="margin:4px 0 0">Parse camera info and GPS data during
+                                    indexing.</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="exif-parsing-toggle"
+                                    onchange="SmartGallery.saveAdvancedSettings()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div
+                            style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)">
+                            <div style="flex:1;padding-right:16px">
+                                <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Auto Indexing
+                                    Enable/Disable</h4>
+                                <p class="form-hint" style="margin:4px 0 0">Automatically detect and index changes in
+                                    watched folders.</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="auto-indexing-toggle"
+                                    onchange="SmartGallery.saveAdvancedSettings()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div style="padding:24px 0 12px">
+                            <div
+                                style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                                <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Search Similarity
+                                    Threshold</h4>
+                                <span id="threshold-val"
+                                    style="font-weight:700;color:var(--primary);font-family:monospace;font-size:14px">0.24</span>
+                            </div>
+                            <input type="range" id="threshold-slider" min="0.0" max="0.6" step="0.01" value="0.24"
+                                style="width:100%;cursor:pointer"
+                                oninput="$('#threshold-val').text(parseFloat(this.value).toFixed(2))"
+                                onchange="SmartGallery.saveAdvancedSettings()">
+                            <div
+                                style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-top:8px">
+                                <span>Strict (Accurate)</span>
+                                <span style="color:var(--green);font-weight:600">Recommended: 0.20 - 0.40</span>
+                                <span>Loose (Broad)</span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
             </div><!-- /.modal-body -->
 
-            <div class="modal-footer">
-                <span style="font-size:11px;color:var(--text-dim);flex:1" id="settings-status-msg"></span>
-                <button class="btn-secondary btn-sm" onclick="SmartGallery.closeSettings()">Close</button>
-                <button class="btn-primary btn-sm" onclick="SmartGallery.triggerReindexFromSettings()">
-                    <span class="material-symbols-outlined" style="font-size:15px">refresh</span> Reindex Now
-                </button>
-            </div>
         </div>
     </div><!-- /#modal-overlay -->
 
-    <!-- ═══ CONTEXT MENU ═════════════════════════════════════════════════ -->
-    <div id="custom-context-menu" class="context-menu" style="display:none">
-        <div class="context-menu-item" onclick="SmartGallery.contextMenuAction('favorite')">
-            <span class="material-symbols-outlined">star</span> Add to Favorites
-        </div>
-        <div class="context-menu-item" onclick="SmartGallery.contextMenuAction('similar')">
-            <span class="material-symbols-outlined">find_replace</span> Search Similar
-        </div>
-        <div class="context-menu-item" onclick="SmartGallery.contextMenuAction('blur')">
-            <span class="material-symbols-outlined">visibility_off</span> Toggle Privacy Blur
-        </div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item text-danger" onclick="SmartGallery.contextMenuAction('delete')">
-            <span class="material-symbols-outlined">delete</span> Delete from Index
-        </div>
-    </div>
+
 
     <!-- ═══ SCRIPTS ═══════════════════════════════════════════════════════ -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"

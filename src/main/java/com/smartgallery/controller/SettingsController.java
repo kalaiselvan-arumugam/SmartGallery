@@ -4,6 +4,7 @@ import com.smartgallery.entity.WatchedFolderEntity;
 import com.smartgallery.repository.ImageRepository;
 import com.smartgallery.repository.WatchedFolderRepository;
 import com.smartgallery.service.FileSystemWatcherService;
+import com.smartgallery.service.ImageIndexerService;
 import com.smartgallery.service.SettingsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,15 +34,18 @@ public class SettingsController {
     private final WatchedFolderRepository watchedFolderRepository;
     private final FileSystemWatcherService watcherService;
     private final ImageRepository imageRepository;
+    private final ImageIndexerService imageIndexerService;
 
     public SettingsController(SettingsService settingsService,
             WatchedFolderRepository watchedFolderRepository,
             FileSystemWatcherService watcherService,
-            ImageRepository imageRepository) {
+            ImageRepository imageRepository,
+            ImageIndexerService imageIndexerService) {
         this.settingsService = settingsService;
         this.watchedFolderRepository = watchedFolderRepository;
         this.watcherService = watcherService;
         this.imageRepository = imageRepository;
+        this.imageIndexerService = imageIndexerService;
     }
 
     /**
@@ -88,6 +92,65 @@ public class SettingsController {
     @GetMapping("/token/status")
     public ResponseEntity<Map<String, Object>> getTokenStatus() {
         return ResponseEntity.ok(Map.of("hasToken", settingsService.hasHfToken()));
+    }
+
+    /**
+     * Returns advanced settings (EXIF toggle, Search threshold).
+     */
+    @GetMapping("/advanced")
+    public ResponseEntity<Map<String, Object>> getAdvancedSettings() {
+        boolean exifEnabled = settingsService.getSetting(SettingsService.KEY_EXIF_ENABLED)
+                .map(Boolean::parseBoolean).orElse(true);
+        boolean exifVisible = settingsService.getSetting(SettingsService.KEY_EXIF_VISIBLE)
+                .map(Boolean::parseBoolean).orElse(true);
+        boolean mapVisible = settingsService.getSetting(SettingsService.KEY_MAP_VISIBLE)
+                .map(Boolean::parseBoolean).orElse(true);
+        boolean autoIndexing = settingsService.getSetting(SettingsService.KEY_AUTO_INDEXING_ENABLED)
+                .map(Boolean::parseBoolean).orElse(true);
+        float threshold = settingsService.getSetting(SettingsService.KEY_SEARCH_THRESHOLD)
+                .map(Float::parseFloat).orElse(0.24f);
+
+        return ResponseEntity.ok(Map.of(
+                "exifEnabled", exifEnabled,
+                "exifVisible", exifVisible,
+                "mapVisible", mapVisible,
+                "autoIndexingEnabled", autoIndexing,
+                "searchThreshold", threshold));
+    }
+
+    /**
+     * Saves advanced settings.
+     */
+    @PostMapping("/advanced")
+    public ResponseEntity<Map<String, Object>> saveAdvancedSettings(@RequestBody Map<String, Object> body) {
+        if (body.containsKey("exifEnabled")) {
+            boolean wasEnabled = settingsService.getSetting(SettingsService.KEY_EXIF_ENABLED)
+                    .map(Boolean::parseBoolean).orElse(true);
+            boolean nowEnabled = Boolean.parseBoolean(body.get("exifEnabled").toString());
+            settingsService.saveSetting(SettingsService.KEY_EXIF_ENABLED, String.valueOf(nowEnabled));
+
+            // If toggled ON, trigger background scan for missing EXIF
+            if (!wasEnabled && nowEnabled) {
+                imageIndexerService.scanMissingExif();
+            }
+        }
+        if (body.containsKey("exifVisible")) {
+            settingsService.saveSetting(SettingsService.KEY_EXIF_VISIBLE, body.get("exifVisible").toString());
+        }
+        if (body.containsKey("mapVisible")) {
+            settingsService.saveSetting(SettingsService.KEY_MAP_VISIBLE, body.get("mapVisible").toString());
+        }
+        if (body.containsKey("autoIndexingEnabled")) {
+            settingsService.saveSetting(SettingsService.KEY_AUTO_INDEXING_ENABLED,
+                    body.get("autoIndexingEnabled").toString());
+        }
+        if (body.containsKey("searchThreshold")) {
+            float threshold = Float.parseFloat(body.get("searchThreshold").toString());
+            // Clamp between 0.0 and 1.0
+            threshold = Math.max(0.0f, Math.min(1.0f, threshold));
+            settingsService.saveSetting(SettingsService.KEY_SEARCH_THRESHOLD, String.valueOf(threshold));
+        }
+        return ResponseEntity.ok(Map.of("status", "saved"));
     }
 
     /**

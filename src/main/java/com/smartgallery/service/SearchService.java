@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -33,18 +32,20 @@ import java.util.stream.Collectors;
 public class SearchService {
 
     private static final Logger log = LoggerFactory.getLogger(SearchService.class);
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final OnnxInferenceService onnxInferenceService;
     private final InMemoryVectorStore vectorStore;
     private final ImageRepository imageRepository;
+    private final SettingsService settingsService;
 
     public SearchService(OnnxInferenceService onnxInferenceService,
             InMemoryVectorStore vectorStore,
-            ImageRepository imageRepository) {
+            ImageRepository imageRepository,
+            SettingsService settingsService) {
         this.onnxInferenceService = onnxInferenceService;
         this.vectorStore = vectorStore;
         this.imageRepository = imageRepository;
+        this.settingsService = settingsService;
     }
 
     /**
@@ -57,18 +58,58 @@ public class SearchService {
      */
     @Transactional(readOnly = true)
     public List<SearchResultItem> searchByText(String query, SearchFilters filters, int limit, int offset) {
+        List<SearchResultItem> tagMatches = new ArrayList<>();
+
+        // 1. Fetch case-insensitive exact custom tag matches
+        if (query != null && !query.isBlank() && offset == 0) {
+            String tagPattern = "%\"" + query.toLowerCase() + "\"%";
+            List<ImageEntity> explicitTagMatches = imageRepository.findByTagCaseInsensitive(tagPattern);
+            for (ImageEntity entity : explicitTagMatches) {
+                if (passesFilters(entity, 1.0, filters)) {
+                    SearchResultItem item = toResultItem(entity, 1.0); // Force 100% similarity for exact tags
+                    tagMatches.add(item);
+                }
+            }
+        }
+
         if (!onnxInferenceService.isReady()) {
             log.warn("ONNX models not ready — falling back to filename search");
-            return fallbackFilenameSearch(query, filters, limit, offset);
+            List<SearchResultItem> fallback = fallbackFilenameSearch(query, filters, limit, offset);
+            return mergeSearchResults(tagMatches, fallback, limit);
         }
 
         float[] queryEmbedding = onnxInferenceService.embedText(query);
         if (queryEmbedding == null) {
             log.warn("Failed to embed query '{}', falling back to filename search", query);
-            return fallbackFilenameSearch(query, filters, limit, offset);
+            List<SearchResultItem> fallback = fallbackFilenameSearch(query, filters, limit, offset);
+            return mergeSearchResults(tagMatches, fallback, limit);
         }
 
-        return runVectorSearch(queryEmbedding, filters, limit, offset);
+        List<SearchResultItem> semanticMatches = runVectorSearch(queryEmbedding, filters, limit, offset);
+        return mergeSearchResults(tagMatches, semanticMatches, limit);
+    }
+
+    /**
+     * Merges explicit tag matches with semantic/fallback results, avoiding
+     * duplicates.
+     */
+    private List<SearchResultItem> mergeSearchResults(List<SearchResultItem> explicitMatches,
+            List<SearchResultItem> fallbackMatches, int limit) {
+        if (explicitMatches.isEmpty())
+            return fallbackMatches;
+
+        List<SearchResultItem> merged = new ArrayList<>(explicitMatches);
+        Set<Long> seenIds = explicitMatches.stream().map(SearchResultItem::getId).collect(Collectors.toSet());
+
+        for (SearchResultItem item : fallbackMatches) {
+            if (!seenIds.contains(item.getId())) {
+                merged.add(item);
+                seenIds.add(item.getId());
+            }
+            if (merged.size() >= limit)
+                break;
+        }
+        return merged;
     }
 
     /**
@@ -102,8 +143,9 @@ public class SearchService {
             filters = new SearchFilters();
         }
         if (filters.getMinScore() == null) {
-            // Default semantic similarity cutoff threshold for basic queries
-            filters.setMinScore(0.24f);
+            float threshold = settingsService.getSetting(SettingsService.KEY_SEARCH_THRESHOLD)
+                    .map(Float::parseFloat).orElse(0.24f);
+            filters.setMinScore(threshold);
         }
 
         // Over-fetch to allow for post-filtering
@@ -176,14 +218,14 @@ public class SearchService {
             return imageRepository.findByIsLovedTrue()
                     .stream()
                     .limit(limit)
-                    .map(e -> toResultItem(e, 1.0))
+                    .map(e -> toResultItem(e, 0.0))
                     .collect(Collectors.toList());
         }
 
         return imageRepository.findByTag("%\"" + tag + "\"%")
                 .stream()
                 .limit(limit)
-                .map(e -> toResultItem(e, 1.0))
+                .map(e -> toResultItem(e, 0.0))
                 .collect(Collectors.toList());
     }
 
@@ -288,12 +330,14 @@ public class SearchService {
         item.setWidth(entity.getWidth());
         item.setHeight(entity.getHeight());
         item.setFileSize(entity.getFileSize());
-        item.setLastModified(entity.getLastModified() != null ? entity.getLastModified().format(DATE_FMT) : null);
-        item.setIndexedAt(entity.getIndexedAt() != null ? entity.getIndexedAt().format(DATE_FMT) : null);
+        item.setLastModified((entity.getLastModified() != null) ? entity.getLastModified().toString() : "");
+        item.setIndexedAt((entity.getIndexedAt() != null) ? entity.getIndexedAt().toString() : "");
         item.setExtraJson(entity.getExtraJson());
         item.setStatus(entity.getStatus());
         item.setLoved(entity.isLoved());
         item.setBlurred(entity.isBlurred());
+        item.setLatitude(entity.getLatitude());
+        item.setLongitude(entity.getLongitude());
         return item;
     }
 }

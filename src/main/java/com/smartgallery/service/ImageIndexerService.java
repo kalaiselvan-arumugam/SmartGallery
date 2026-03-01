@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,6 +52,7 @@ public class ImageIndexerService {
     private final ThumbnailService thumbnailService;
     private final OnnxInferenceService onnxInferenceService;
     private final InMemoryVectorStore vectorStore;
+    private final SettingsService settingsService;
 
     // Indexing state
     private final AtomicInteger queuedCount = new AtomicInteger(0);
@@ -63,12 +65,14 @@ public class ImageIndexerService {
             ReindexLogRepository reindexLogRepository,
             ThumbnailService thumbnailService,
             OnnxInferenceService onnxInferenceService,
-            InMemoryVectorStore vectorStore) {
+            InMemoryVectorStore vectorStore,
+            SettingsService settingsService) {
         this.imageRepository = imageRepository;
         this.reindexLogRepository = reindexLogRepository;
         this.thumbnailService = thumbnailService;
         this.onnxInferenceService = onnxInferenceService;
         this.vectorStore = vectorStore;
+        this.settingsService = settingsService;
     }
 
     /**
@@ -139,6 +143,9 @@ public class ImageIndexerService {
         logEntry.setFilePath(imagePath.toString());
         logEntry.setProcessedAt(LocalDateTime.now());
 
+        boolean exifEnabled = settingsService.getSetting(SettingsService.KEY_EXIF_ENABLED)
+                .map(Boolean::parseBoolean).orElse(true);
+
         try {
             // ── 1. Compute file hash ──────────────────────────────────────────
             String newHash = computeSha256(imagePath);
@@ -148,7 +155,14 @@ public class ImageIndexerService {
 
             // Check if already indexed with the same hash
             ImageEntity existing = imageRepository.findByFilePath(imagePath.toString()).orElse(null);
-            if (existing != null && newHash.equals(existing.getFileHash()) && existing.getEmbedding() != null) {
+            boolean needsEmbedding = existing == null || existing.getEmbedding() == null
+                    || !newHash.equals(existing.getFileHash());
+            boolean exifParsed = existing != null && existing.getExtraJson() != null
+                    && existing.getExtraJson().contains("\"exif_parsed\":true");
+
+            // If EXIF is disabled, we don't care if it's parsed as long as embedding is
+            // good
+            if (!needsEmbedding && (!exifEnabled || exifParsed)) {
                 logEntry.setStatus("SKIPPED");
                 logEntry.setImageId(existing.getId());
                 logEntry.setDurationMs(System.currentTimeMillis() - startMs);
@@ -171,9 +185,95 @@ public class ImageIndexerService {
             } catch (Exception ignored) {
             }
 
+            // ── 3.5 Compute EXIF and GPS Metadata ────────────────────────────
+            Double latitude = null;
+            Double longitude = null;
+            java.util.Map<String, String> exifMap = new java.util.HashMap<>();
+
+            if (exifEnabled) {
+                try {
+                    com.drew.metadata.Metadata metadata = com.drew.imaging.ImageMetadataReader
+                            .readMetadata(imagePath.toFile());
+
+                    // GPS
+                    com.drew.metadata.exif.GpsDirectory gpsDir = metadata
+                            .getFirstDirectoryOfType(com.drew.metadata.exif.GpsDirectory.class);
+                    if (gpsDir != null && gpsDir.getGeoLocation() != null) {
+                        latitude = gpsDir.getGeoLocation().getLatitude();
+                        longitude = gpsDir.getGeoLocation().getLongitude();
+                    }
+
+                    // IFD0 (Make, Model)
+                    com.drew.metadata.exif.ExifIFD0Directory ifd0Dir = metadata
+                            .getFirstDirectoryOfType(com.drew.metadata.exif.ExifIFD0Directory.class);
+                    if (ifd0Dir != null) {
+                        if (ifd0Dir.containsTag(com.drew.metadata.exif.ExifIFD0Directory.TAG_MAKE))
+                            exifMap.put("Camera maker",
+                                    ifd0Dir.getString(com.drew.metadata.exif.ExifIFD0Directory.TAG_MAKE));
+                        if (ifd0Dir.containsTag(com.drew.metadata.exif.ExifIFD0Directory.TAG_MODEL))
+                            exifMap.put("Camera model",
+                                    ifd0Dir.getString(com.drew.metadata.exif.ExifIFD0Directory.TAG_MODEL));
+                    }
+
+                    // SubIFD
+                    com.drew.metadata.exif.ExifSubIFDDirectory subIfdDir = metadata
+                            .getFirstDirectoryOfType(com.drew.metadata.exif.ExifSubIFDDirectory.class);
+                    if (subIfdDir != null) {
+                        if (subIfdDir.containsTag(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_FNUMBER))
+                            exifMap.put("F-stop", "f/"
+                                    + subIfdDir.getString(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_FNUMBER));
+                        if (subIfdDir.containsTag(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_EXPOSURE_TIME))
+                            exifMap.put("Exposure time",
+                                    subIfdDir.getString(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_EXPOSURE_TIME)
+                                            + " sec.");
+                        if (subIfdDir.containsTag(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_ISO_EQUIVALENT))
+                            exifMap.put("ISO speed", "ISO-" + subIfdDir
+                                    .getString(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_ISO_EQUIVALENT));
+                        if (subIfdDir.containsTag(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_EXPOSURE_BIAS))
+                            exifMap.put("Exposure bias",
+                                    subIfdDir.getString(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_EXPOSURE_BIAS)
+                                            + " step");
+                        if (subIfdDir.containsTag(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_FOCAL_LENGTH))
+                            exifMap.put("Focal length",
+                                    subIfdDir.getString(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_FOCAL_LENGTH)
+                                            + " mm");
+                        if (subIfdDir.containsTag(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_MAX_APERTURE))
+                            exifMap.put("Max aperture",
+                                    subIfdDir.getString(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_MAX_APERTURE));
+                        if (subIfdDir.containsTag(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_METERING_MODE))
+                            exifMap.put("Metering mode", subIfdDir
+                                    .getDescription(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_METERING_MODE));
+                        if (subIfdDir.containsTag(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_FLASH))
+                            exifMap.put("Flash mode",
+                                    subIfdDir.getDescription(com.drew.metadata.exif.ExifSubIFDDirectory.TAG_FLASH));
+                        if (subIfdDir.containsTag(
+                                com.drew.metadata.exif.ExifSubIFDDirectory.TAG_35MM_FILM_EQUIV_FOCAL_LENGTH))
+                            exifMap.put("35mm focal len", subIfdDir.getString(
+                                    com.drew.metadata.exif.ExifSubIFDDirectory.TAG_35MM_FILM_EQUIV_FOCAL_LENGTH));
+                    }
+                } catch (Exception e) {
+                    log.debug("Failed to extract EXIF for {}: {}", imagePath.getFileName(), e.getMessage());
+                }
+            }
+
+            // Merge EXIF into extraJson
+            String existingJson = (existing != null && existing.getExtraJson() != null
+                    && !existing.getExtraJson().isBlank()) ? existing.getExtraJson() : "{}";
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                com.fasterxml.jackson.databind.node.ObjectNode rootNode = (com.fasterxml.jackson.databind.node.ObjectNode) mapper
+                        .readTree(existingJson);
+                if (!exifMap.isEmpty()) {
+                    rootNode.set("exif", mapper.valueToTree(exifMap));
+                }
+                rootNode.put("exif_parsed", true);
+                existingJson = mapper.writeValueAsString(rootNode);
+            } catch (Exception e) {
+            }
+
             // ── 4. Compute CLIP embedding (if models are ready) ──────────────
             byte[] embeddingBytes = null;
-            if (onnxInferenceService.isReady()) {
+            if (needsEmbedding && onnxInferenceService.isReady()) {
                 float[] embedding = onnxInferenceService.embedImage(imagePath);
                 if (embedding != null) {
                     embeddingBytes = EmbeddingUtils.toBytes(embedding);
@@ -194,6 +294,9 @@ public class ImageIndexerService {
             if (embeddingBytes != null) {
                 entity.setEmbedding(embeddingBytes);
             }
+            entity.setLatitude(latitude);
+            entity.setLongitude(longitude);
+            entity.setExtraJson(existingJson);
 
             ImageEntity saved = imageRepository.save(entity);
 
@@ -216,6 +319,32 @@ public class ImageIndexerService {
             reindexLogRepository.save(logEntry);
             currentFile.set("");
         }
+    }
+
+    /**
+     * Scans for images that have missing EXIF data and triggers a partial re-index.
+     */
+    @Async("indexingExecutor")
+    public void scanMissingExif() {
+        log.info("Starting background scan for missing EXIF metadata...");
+        List<ImageEntity> all = imageRepository.findAll();
+        List<ImageEntity> missing = all.stream()
+                .filter(e -> e.getExtraJson() == null || !e.getExtraJson().contains("\"exif_parsed\":true"))
+                .collect(Collectors.toList());
+
+        if (missing.isEmpty()) {
+            log.info("No images found with missing EXIF.");
+            return;
+        }
+
+        log.info("Found {} images requiring EXIF parsing. Updating...", missing.size());
+        for (ImageEntity entity : missing) {
+            Path path = Paths.get(entity.getFilePath());
+            if (Files.exists(path)) {
+                indexSingleFile(path);
+            }
+        }
+        log.info("Background EXIF update complete.");
     }
 
     /**

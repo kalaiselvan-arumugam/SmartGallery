@@ -19,6 +19,8 @@ public class SearchResultItem {
     private String status;
     private boolean isLoved;
     private boolean isBlurred;
+    private Double latitude;
+    private Double longitude;
 
     public SearchResultItem() {
     }
@@ -133,5 +135,21 @@ public class SearchResultItem {
 
     public void setBlurred(boolean isBlurred) {
         this.isBlurred = isBlurred;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 }

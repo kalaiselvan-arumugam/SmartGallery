@@ -38,6 +38,7 @@ public class FileSystemWatcherService {
     private final WatchedFolderRepository watchedFolderRepository;
     private final ImageIndexerService imageIndexerService;
     private final ThumbnailService thumbnailService;
+    private final SettingsService settingsService;
 
     private WatchService watchService;
     private Thread watcherThread;
@@ -50,11 +51,13 @@ public class FileSystemWatcherService {
     public FileSystemWatcherService(AppConfig appConfig,
             WatchedFolderRepository watchedFolderRepository,
             ImageIndexerService imageIndexerService,
-            ThumbnailService thumbnailService) {
+            ThumbnailService thumbnailService,
+            SettingsService settingsService) {
         this.appConfig = appConfig;
         this.watchedFolderRepository = watchedFolderRepository;
         this.imageIndexerService = imageIndexerService;
         this.thumbnailService = thumbnailService;
+        this.settingsService = settingsService;
     }
 
     @PostConstruct
@@ -199,7 +202,13 @@ public class FileSystemWatcherService {
                 continue;
             }
 
+            boolean autoIndex = settingsService.getSetting(SettingsService.KEY_AUTO_INDEXING_ENABLED)
+                    .map(Boolean::parseBoolean).orElse(true);
+
             for (WatchEvent<?> event : key.pollEvents()) {
+                if (!autoIndex)
+                    continue; // Skip event processing if auto-indexing is disabled
+
                 WatchEvent.Kind<?> kind = event.kind();
                 if (kind == StandardWatchEventKinds.OVERFLOW)
                     continue;

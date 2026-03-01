@@ -65,11 +65,6 @@ textarea {
   user-select: auto;
 }
 
-a {
-  color: var(--primary);
-  text-decoration: none;
-}
-
 button {
   font-family: inherit;
   cursor: pointer;
@@ -79,9 +74,18 @@ button {
 }
 
 input,
-textarea {
-  font-family: inherit;
+textarea,
+select {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 14px;
 }
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+
 
 /* ─── Custom Scrollbar ────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
@@ -645,7 +649,13 @@ textarea {
 
 .lightbox-img.zoomed {
   transform: scale(2.5);
-  cursor: zoom-out;
+  cursor: grab;
+}
+
+.lightbox-img.zoomed.dragging {
+  cursor: grabbing;
+  transition: none;
+  /* Remove lag while dragging */
 }
 
 .lightbox-close {
@@ -701,15 +711,17 @@ textarea {
 }
 
 .lightbox-caption {
-  position: absolute;
-  bottom: 10px;
+  position: fixed;
+  bottom: 0;
   left: 0;
   right: 0;
   text-align: center;
-  color: rgba(255, 255, 255, 0.8);
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  color: white;
   font-size: 14px;
-  padding: 10px;
+  padding: 20px 10px 15px;
   z-index: 10000;
+  pointer-events: none;
 }
 
 .gallery-card:hover {
@@ -981,11 +993,56 @@ textarea {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
 }
 
 .detail-body {
   padding: 12px;
   flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.detail-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.detail-body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* Privacy Toggle Icon Button */
+.privacy-toggle-btn {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  transition: var(--transition);
+}
+
+.privacy-toggle-btn:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+  background: var(--active);
+}
+
+.privacy-toggle-btn.active {
+  background: var(--red);
+  color: white;
+  border-color: var(--red);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
+.privacy-toggle-btn .material-symbols-outlined {
+  font-size: 18px;
 }
 
 .detail-section {
@@ -1103,8 +1160,15 @@ textarea {
   padding: 12px;
   border-top: 1px solid var(--border);
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: auto 1fr 1fr;
+  align-items: center;
   gap: 8px;
+  background: rgba(31, 41, 55, 0.5);
+}
+
+.btn-block {
+  flex: 1;
+  justify-content: center;
 }
 
 /* ─── Buttons ─────────────────────────────────────────────────────────── */
@@ -1197,9 +1261,9 @@ textarea {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   width: 780px;
-  min-height: 500px;
+  height: 500px;
   max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 40px);
+  max-height: 500px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1273,7 +1337,7 @@ textarea {
 }
 
 .modal-col {
-  padding: 20px;
+  padding: 24px;
 }
 
 .modal-col+.modal-col {
@@ -1692,4 +1756,51 @@ textarea {
   height: 1px;
   background: var(--border);
   margin: 4px 0;
+}
+
+/* ─── Toggle Switch Component ────────────────────────────────────────── */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--active);
+  transition: var(--transition);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  top: 2px;
+  background-color: var(--text-muted);
+  transition: var(--transition);
+  border-radius: 50%;
+}
+
+input:checked+.slider {
+  background-color: var(--primary-dim);
+  border-color: var(--primary);
+}
+
+input:checked+.slider:before {
+  transform: translateX(18px);
+  background-color: var(--primary);
 }

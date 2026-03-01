@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import java.util.Arrays;
 import java.util.List;
 
-
 @Configuration
 @ConfigurationProperties(prefix = "app")
 public class AppConfig {
@@ -28,9 +27,6 @@ public class AppConfig {
 
     /** Allow automatic model downloads from Hugging Face */
     private boolean allowAutoDownload = true;
-
-    /** Load sample demo images on first run */
-    private boolean loadSampleData = false;
 
     /** Thumbnail size in pixels (square) */
     private int thumbSize = 300;
@@ -97,14 +93,6 @@ public class AppConfig {
 
     public void setAllowAutoDownload(boolean allowAutoDownload) {
         this.allowAutoDownload = allowAutoDownload;
-    }
-
-    public boolean isLoadSampleData() {
-        return loadSampleData;
-    }
-
-    public void setLoadSampleData(boolean loadSampleData) {
-        this.loadSampleData = loadSampleData;
     }
 
     public int getThumbSize() {

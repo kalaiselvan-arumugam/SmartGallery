@@ -22,6 +22,11 @@ public class SettingsService {
     private static final String KEY_HF_TOKEN = "hf_token_encrypted";
     private static final String KEY_HF_REPO = "hf_repo";
     private static final String KEY_ALLOW_DOWNLOAD = "allow_auto_download";
+    public static final String KEY_EXIF_ENABLED = "exif_parsing_enabled";
+    public static final String KEY_EXIF_VISIBLE = "exif_display_visible";
+    public static final String KEY_MAP_VISIBLE = "map_display_visible";
+    public static final String KEY_AUTO_INDEXING_ENABLED = "auto_indexing_enabled";
+    public static final String KEY_SEARCH_THRESHOLD = "search_similarity_threshold";
 
     private final SettingRepository settingRepository;
     private final TokenEncryptionService encryptionService;
