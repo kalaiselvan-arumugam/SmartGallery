@@ -60,19 +60,22 @@ public class ImageIndexerService {
     private final AtomicInteger errorCount = new AtomicInteger(0);
     private final AtomicLong lastRunTime = new AtomicLong(0);
     private final AtomicReference<String> currentFile = new AtomicReference<>("");
+    private final OcrService ocrService;
 
     public ImageIndexerService(ImageRepository imageRepository,
             ReindexLogRepository reindexLogRepository,
             ThumbnailService thumbnailService,
             OnnxInferenceService onnxInferenceService,
             InMemoryVectorStore vectorStore,
-            SettingsService settingsService) {
+            SettingsService settingsService,
+            OcrService ocrService) {
         this.imageRepository = imageRepository;
         this.reindexLogRepository = reindexLogRepository;
         this.thumbnailService = thumbnailService;
         this.onnxInferenceService = onnxInferenceService;
         this.vectorStore = vectorStore;
         this.settingsService = settingsService;
+        this.ocrService = ocrService;
     }
 
     /**
@@ -160,9 +163,14 @@ public class ImageIndexerService {
             boolean exifParsed = existing != null && existing.getExtraJson() != null
                     && existing.getExtraJson().contains("\"exif_parsed\":true");
 
-            // If EXIF is disabled, we don't care if it's parsed as long as embedding is
-            // good
-            if (!needsEmbedding && (!exifEnabled || exifParsed)) {
+            boolean ocrEnabledNow = settingsService.getSetting(SettingsService.KEY_OCR_INDEXING_ENABLED)
+                    .map(Boolean::parseBoolean).orElse(false);
+            boolean ocrMissing = ocrEnabledNow && existing != null
+                    && (existing.getExtractedText() == null || existing.getExtractedText().isBlank());
+
+            // Skip only when NOTHING needs to be done (no new embedding, no EXIF, no
+            // missing OCR)
+            if (!needsEmbedding && existing != null && (!exifEnabled || exifParsed) && !ocrMissing) {
                 logEntry.setStatus("SKIPPED");
                 logEntry.setImageId(existing.getId());
                 logEntry.setDurationMs(System.currentTimeMillis() - startMs);
@@ -298,6 +306,31 @@ public class ImageIndexerService {
             entity.setLongitude(longitude);
             entity.setExtraJson(existingJson);
 
+            // ── OCR ───────────────────────────────────────────────────────────
+            boolean ocrEnabled = settingsService.getSetting(SettingsService.KEY_OCR_INDEXING_ENABLED)
+                    .map(Boolean::parseBoolean).orElse(false);
+            if (ocrEnabled && (entity.getExtractedText() == null || entity.getExtractedText().isBlank())) {
+                try {
+                    log.info("[OCR] Running OCR on: {}", imagePath.getFileName());
+                    String extractedText = ocrService.extractText(imagePath.toFile());
+                    if (extractedText != null && !extractedText.isBlank()) {
+                        entity.setExtractedText(extractedText);
+                        log.info("[OCR] ✓ Extracted {} chars from {}: '{}'",
+                                extractedText.length(),
+                                imagePath.getFileName(),
+                                extractedText.length() > 80
+                                        ? extractedText.substring(0, 80) + "…"
+                                        : extractedText);
+                    } else {
+                        log.info("[OCR] No text found in: {}", imagePath.getFileName());
+                    }
+                } catch (Exception ex) {
+                    log.error("[OCR] Failed on {}: {}", imagePath.getFileName(), ex.getMessage());
+                }
+            } else if (!ocrEnabled) {
+                log.debug("[OCR] Skipped (OCR indexing is disabled in Settings → Advanced)");
+            }
+
             ImageEntity saved = imageRepository.save(entity);
 
             // ── 6. Update in-memory vector store ─────────────────────────────
@@ -345,6 +378,56 @@ public class ImageIndexerService {
             }
         }
         log.info("Background EXIF update complete.");
+    }
+
+    /**
+     * Clears all stored OCR text and re-runs OCR on every indexed image.
+     * Called when the user changes the active OCR model (e.g. switches to Tamil).
+     */
+    @Async("indexingExecutor")
+    public void forceReOcrAll() {
+        log.info("[OCR] Force re-OCR: clearing extracted text for all {} images...",
+                imageRepository.count());
+        // Clear extractedText for all images so OCR re-runs during indexSingleFile
+        List<ImageEntity> all = imageRepository.findAll();
+        for (ImageEntity e : all) {
+            e.setExtractedText(null);
+        }
+        imageRepository.saveAll(all);
+        log.info("[OCR] Cleared. Starting re-OCR on {} images...", all.size());
+        for (ImageEntity entity : all) {
+            Path path = Paths.get(entity.getFilePath());
+            if (Files.exists(path)) {
+                indexSingleFile(path);
+            }
+        }
+        log.info("[OCR] Force re-OCR complete.");
+    }
+
+    /**
+     * Scans for images that have missing OCR text and triggers a partial re-index.
+     */
+    @Async("indexingExecutor")
+    public void scanMissingOcrText() {
+        log.info("[OCR] Scanning for images missing OCR text...");
+        List<ImageEntity> all = imageRepository.findAll();
+        List<ImageEntity> missing = all.stream()
+                .filter(e -> e.getExtractedText() == null || e.getExtractedText().isBlank())
+                .collect(Collectors.toList());
+
+        if (missing.isEmpty()) {
+            log.info("[OCR] All images already have extracted text.");
+            return;
+        }
+
+        log.info("[OCR] Found {} images without OCR text. Processing...", missing.size());
+        for (ImageEntity entity : missing) {
+            Path path = Paths.get(entity.getFilePath());
+            if (Files.exists(path)) {
+                indexSingleFile(path);
+            }
+        }
+        log.info("[OCR] Background OCR scan complete.");
     }
 
     /**
