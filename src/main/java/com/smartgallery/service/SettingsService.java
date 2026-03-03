@@ -27,6 +27,8 @@ public class SettingsService {
     public static final String KEY_MAP_VISIBLE = "map_display_visible";
     public static final String KEY_AUTO_INDEXING_ENABLED = "auto_indexing_enabled";
     public static final String KEY_SEARCH_THRESHOLD = "search_similarity_threshold";
+    public static final String KEY_OCR_INDEXING_ENABLED = "ocr_indexing_enabled";
+    public static final String KEY_OCR_COPY_ENABLED = "ocr_copy_enabled";
 
     private final SettingRepository settingRepository;
     private final TokenEncryptionService encryptionService;
