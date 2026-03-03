@@ -33,19 +33,19 @@ public class SettingsController {
     private final SettingsService settingsService;
     private final WatchedFolderRepository watchedFolderRepository;
     private final FileSystemWatcherService watcherService;
-    private final ImageRepository imageRepository;
     private final ImageIndexerService imageIndexerService;
+    private final ImageRepository imageRepository;
 
     public SettingsController(SettingsService settingsService,
             WatchedFolderRepository watchedFolderRepository,
             FileSystemWatcherService watcherService,
-            ImageRepository imageRepository,
-            ImageIndexerService imageIndexerService) {
+            ImageIndexerService imageIndexerService,
+            ImageRepository imageRepository) {
         this.settingsService = settingsService;
         this.watchedFolderRepository = watchedFolderRepository;
         this.watcherService = watcherService;
-        this.imageRepository = imageRepository;
         this.imageIndexerService = imageIndexerService;
+        this.imageRepository = imageRepository;
     }
 
     /**
@@ -110,12 +110,19 @@ public class SettingsController {
         float threshold = settingsService.getSetting(SettingsService.KEY_SEARCH_THRESHOLD)
                 .map(Float::parseFloat).orElse(0.24f);
 
+        boolean ocrIndexingEnabled = settingsService.getSetting(SettingsService.KEY_OCR_INDEXING_ENABLED)
+                .map(Boolean::parseBoolean).orElse(false);
+        boolean ocrCopyEnabled = settingsService.getSetting(SettingsService.KEY_OCR_COPY_ENABLED)
+                .map(Boolean::parseBoolean).orElse(true);
+
         return ResponseEntity.ok(Map.of(
                 "exifEnabled", exifEnabled,
                 "exifVisible", exifVisible,
                 "mapVisible", mapVisible,
                 "autoIndexingEnabled", autoIndexing,
-                "searchThreshold", threshold));
+                "searchThreshold", threshold,
+                "ocrIndexingEnabled", ocrIndexingEnabled,
+                "ocrCopyEnabled", ocrCopyEnabled));
     }
 
     /**
@@ -149,6 +156,21 @@ public class SettingsController {
             // Clamp between 0.0 and 1.0
             threshold = Math.max(0.0f, Math.min(1.0f, threshold));
             settingsService.saveSetting(SettingsService.KEY_SEARCH_THRESHOLD, String.valueOf(threshold));
+        }
+        if (body.containsKey("ocrIndexingEnabled")) {
+            boolean wasEnabled = settingsService.getSetting(SettingsService.KEY_OCR_INDEXING_ENABLED)
+                    .map(Boolean::parseBoolean).orElse(false);
+            boolean nowEnabled = Boolean.parseBoolean(body.get("ocrIndexingEnabled").toString());
+            settingsService.saveSetting(SettingsService.KEY_OCR_INDEXING_ENABLED, String.valueOf(nowEnabled));
+
+            // If toggled ON, trigger background scan for missing OCR text
+            if (!wasEnabled && nowEnabled) {
+                // To be implemented in ImageIndexerService
+                imageIndexerService.scanMissingOcrText();
+            }
+        }
+        if (body.containsKey("ocrCopyEnabled")) {
+            settingsService.saveSetting(SettingsService.KEY_OCR_COPY_ENABLED, body.get("ocrCopyEnabled").toString());
         }
         return ResponseEntity.ok(Map.of("status", "saved"));
     }
