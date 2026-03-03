@@ -66,9 +66,34 @@ public class SearchService {
             List<ImageEntity> explicitTagMatches = imageRepository.findByTagCaseInsensitive(tagPattern);
             for (ImageEntity entity : explicitTagMatches) {
                 if (passesFilters(entity, 1.0, filters)) {
-                    SearchResultItem item = toResultItem(entity, 1.0); // Force 100% similarity for exact tags
-                    tagMatches.add(item);
+                    tagMatches.add(toResultItem(entity, 1.0));
                 }
+            }
+
+            // OCR text search — use raw query for Unicode/Tamil/non-ASCII scripts
+            // because LOWER() is meaningless for non-Latin text and can cause H2 collation
+            // issues.
+            boolean isAsciiQuery = query.chars().allMatch(c -> c < 128);
+            String ocrPattern = "%" + (isAsciiQuery ? query.toLowerCase() : query) + "%";
+
+            List<ImageEntity> ocrMatches = isAsciiQuery
+                    ? imageRepository.findByExtractedTextCaseInsensitive(ocrPattern)
+                    : imageRepository.findByExtractedTextRaw(ocrPattern);
+
+            for (ImageEntity entity : ocrMatches) {
+                if (passesFilters(entity, 1.0, filters)) {
+                    SearchResultItem item = toResultItem(entity, 1.0);
+                    if (tagMatches.stream().noneMatch(e -> e.getId().equals(item.getId()))) {
+                        tagMatches.add(item);
+                    }
+                }
+            }
+
+            if (!tagMatches.isEmpty()) {
+                log.debug("OCR/tag text search found {} exact matches for query '{}'",
+                        tagMatches.size(), query);
+            } else {
+                log.debug("No OCR text matches for '{}' — falling back to CLIP semantic search", query);
             }
         }
 
@@ -333,6 +358,7 @@ public class SearchService {
         item.setLastModified((entity.getLastModified() != null) ? entity.getLastModified().toString() : "");
         item.setIndexedAt((entity.getIndexedAt() != null) ? entity.getIndexedAt().toString() : "");
         item.setExtraJson(entity.getExtraJson());
+        item.setExtractedText(entity.getExtractedText());
         item.setStatus(entity.getStatus());
         item.setLoved(entity.isLoved());
         item.setBlurred(entity.isBlurred());
