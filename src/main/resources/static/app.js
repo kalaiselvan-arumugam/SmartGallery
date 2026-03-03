@@ -410,7 +410,7 @@ const SmartGallery = (() => {
         if (!e.ctrlKey && e.button === 0) {
           if (clickTimer) clearTimeout(clickTimer);
           clickTimer = setTimeout(() => {
-            selectImage(item, index, false);
+            selectImage(item, index, true);
           }, 250);
         }
       });
@@ -521,6 +521,15 @@ const SmartGallery = (() => {
       }
       if (hasExif) $exifSection.show();
       else $exifSection.hide();
+    }
+
+    // OCR
+    const $ocrSection = $('#dp-ocr-section');
+    if (state.ocrCopyEnabled && item.extractedText && item.extractedText.trim() !== '') {
+      $('#dp-ocr-text').text(item.extractedText);
+      $ocrSection.show();
+    } else {
+      $ocrSection.hide();
     }
 
     // Tags
@@ -1008,18 +1017,24 @@ const SmartGallery = (() => {
     $('#tab-' + tab).show();
     if (tab === 'folders') loadFoldersList();
     if (tab === 'advanced') loadAdvancedSettings();
+    if (tab === 'ocr') { loadAdvancedSettings(); loadOcrModels(); }
   }
 
   function loadAdvancedSettings() {
     $.getJSON('/api/settings/advanced', data => {
       state.exifVisible = data.exifVisible;
       state.mapVisible = data.mapVisible;
+      state.ocrCopyEnabled = data.ocrCopyEnabled;
+      state.ocrLanguage = data.ocrLanguage || 'en';
       $('#exif-visible-toggle').prop('checked', data.exifVisible);
       $('#map-visible-toggle').prop('checked', data.mapVisible);
       $('#exif-parsing-toggle').prop('checked', data.exifEnabled);
       $('#auto-indexing-toggle').prop('checked', data.autoIndexingEnabled);
+      $('#ocr-indexing-toggle').prop('checked', data.ocrIndexingEnabled);
+      $('#ocr-copy-toggle').prop('checked', data.ocrCopyEnabled);
       $('#threshold-slider').val(data.searchThreshold);
       $('#threshold-val').text(data.searchThreshold.toFixed(2));
+      $('#ocr-lang-select').val(state.ocrLanguage);
     });
   }
 
@@ -1028,16 +1043,21 @@ const SmartGallery = (() => {
     const mapVisible = $('#map-visible-toggle').is(':checked');
     const exifEnabled = $('#exif-parsing-toggle').is(':checked');
     const autoIndexingEnabled = $('#auto-indexing-toggle').is(':checked');
+    const ocrIndexingEnabled = $('#ocr-indexing-toggle').is(':checked');
+    const ocrCopyEnabled = $('#ocr-copy-toggle').is(':checked');
     const searchThreshold = parseFloat($('#threshold-slider').val());
+    const ocrLanguage = $('#ocr-lang-select').val();
 
     $.ajax({
       url: '/api/settings/advanced',
       method: 'POST',
       contentType: 'application/json',
-      data: JSON.stringify({ exifVisible, mapVisible, exifEnabled, autoIndexingEnabled, searchThreshold }),
+      data: JSON.stringify({ exifVisible, mapVisible, exifEnabled, autoIndexingEnabled, ocrIndexingEnabled, ocrCopyEnabled, searchThreshold, ocrLanguage }),
       success: () => {
         state.exifVisible = exifVisible;
         state.mapVisible = mapVisible;
+        state.ocrCopyEnabled = ocrCopyEnabled;
+        state.ocrLanguage = ocrLanguage;
         showToast('Advanced settings saved', 'success');
         // Refresh detail panel if open
         if (state.selectedId) {
@@ -1369,6 +1389,186 @@ const SmartGallery = (() => {
     return (bytes / 1024 / 1024).toFixed(1) + ' MB';
   }
 
+  function copyOcrText() {
+    const text = $('#dp-ocr-text').text();
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('Copied to clipboard', 'success');
+    }).catch(err => {
+      showToast('Failed to copy text', 'error');
+    });
+  }
+
+  // ─── OCR Model Management ─────────────────────────────────────────────────
+
+  /**
+   * Loads the OCR model catalog and renders the download table + active checklist.
+   * Called when the user opens the OCR settings tab.
+   */
+  function loadOcrModels() {
+    // Also load hardware preference
+    $.getJSON('/api/ocr/hardware', data => {
+      $(`#hw-${data.hardware}`).prop('checked', true);
+    });
+
+    $.getJSON('/api/ocr/models', models => {
+      // ─── Download table ───────────────────────────────────
+      let tableHtml = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-weight:600">Language</th>
+          <th style="text-align:center;padding:6px 8px;color:var(--text-muted);font-weight:600">Status</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--text-muted);font-weight:600">Action</th>
+        </tr></thead><tbody>`;
+
+      models.forEach(m => {
+        const downloadedBadge = m.downloaded
+          ? `<span style="color:#4caf50;font-weight:600">✅ Ready</span>`
+          : `<span style="color:var(--text-muted)">📥 Not Downloaded</span>`;
+        const dlBtn = m.downloading
+          ? `<button class="btn-secondary btn-sm" disabled>Downloading…</button>`
+          : m.downloaded
+            ? `<button class="btn-secondary btn-sm" onclick="SmartGallery.downloadOcrModel('${m.key}')">Re-download</button>`
+            : `<button class="btn-primary btn-sm" onclick="SmartGallery.downloadOcrModel('${m.key}')">Download</button>`;
+
+        tableHtml += `<tr id="ocr-model-row-${m.key}" style="border-bottom:1px solid var(--border)">
+          <td style="padding:8px">${m.displayName}</td>
+          <td style="padding:8px;text-align:center" id="ocr-model-status-${m.key}">${downloadedBadge}</td>
+          <td style="padding:8px;text-align:right">${dlBtn}</td>
+        </tr>
+        <tr id="ocr-progress-row-${m.key}" style="display:none;background:var(--card)">
+          <td colspan="3" style="padding:0 8px 8px">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px" id="ocr-progress-msg-${m.key}">Starting download…</div>
+            <div style="background:var(--border);border-radius:4px;height:6px">
+              <div id="ocr-progress-bar-${m.key}" style="background:var(--primary);height:6px;border-radius:4px;width:0%;transition:width 0.3s"></div>
+            </div>
+          </td>
+        </tr>`;
+      });
+      tableHtml += '</tbody></table>';
+      $('#ocr-model-table').html(tableHtml);
+
+      // ─── Active checklist (only downloaded models) ────────
+      const downloaded = models.filter(m => m.downloaded);
+      if (downloaded.length === 0) {
+        $('#ocr-active-checklist').html('<div style="color:var(--text-muted);font-size:12px">No models downloaded yet. Download at least one above.</div>');
+      } else {
+        let checklistHtml = '<div style="display:flex;flex-wrap:wrap;gap:12px">';
+        downloaded.forEach(m => {
+          checklistHtml += `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
+            <input type="checkbox" class="ocr-active-check" value="${m.key}" ${m.active ? 'checked' : ''}>
+            ${m.displayName}
+          </label>`;
+        });
+        checklistHtml += '</div>';
+        $('#ocr-active-checklist').html(checklistHtml);
+      }
+    });
+  }
+
+  /**
+   * Starts a real download of the specified model key via the backend,
+   * subscribing to SSE progress events to update the per-row progress bar.
+   */
+  function downloadOcrModel(modelKey) {
+    if (!modelKey) return;
+
+    // Open SSE stream first
+    const sse = new EventSource('/api/ocr/download/stream');
+
+    sse.onmessage = evt => {
+      const data = JSON.parse(evt.data);
+      if (data.modelKey !== modelKey) return;
+
+      const msg = data.message || '';
+      const type = data.type || 'PROGRESS';
+
+      // Parse percentage from message if present
+      const pctMatch = msg.match(/(\d+)%/);
+      if (pctMatch) {
+        $(`#ocr-progress-bar-${modelKey}`).css('width', pctMatch[1] + '%');
+      }
+      $(`#ocr-progress-msg-${modelKey}`).text(msg);
+
+      if (type === 'DONE') {
+        sse.close();
+        $(`#ocr-progress-bar-${modelKey}`).css('width', '100%');
+        setTimeout(() => {
+          $(`#ocr-progress-row-${modelKey}`).hide();
+          showToast(`Model downloaded successfully!`, 'success');
+          loadOcrModels(); // Refresh table + checklist
+        }, 1500);
+      } else if (type === 'ERROR') {
+        sse.close();
+        $(`#ocr-progress-row-${modelKey}`).hide();
+        showToast('Download failed: ' + msg, 'error');
+        loadOcrModels();
+      }
+    };
+
+    sse.onerror = () => sse.close();
+
+    // Show progress row inline
+    $(`#ocr-progress-row-${modelKey}`).show();
+    $(`#ocr-progress-bar-${modelKey}`).css('width', '0%');
+    $(`#ocr-progress-msg-${modelKey}`).text('Connecting to Hugging Face…');
+
+    // Trigger the actual download
+    $.ajax({
+      url: `/api/ocr/download/${modelKey}`,
+      method: 'POST',
+      error: () => {
+        sse.close();
+        showToast('Failed to start download', 'error');
+        loadOcrModels();
+      }
+    });
+  }
+
+  /** Saves the hardware mode preference and shows a toast. */
+  function setOcrHardware(hw) {
+    $.ajax({
+      url: '/api/ocr/hardware',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ hardware: hw }),
+      success: () => showToast(`Hardware set to ${hw.toUpperCase()} — reload engine to apply.`, 'info'),
+      error: () => showToast('Failed to save hardware setting', 'error')
+    });
+  }
+
+  /** Saves the active (selected) models list to the backend. */
+  function setActiveModels() {
+    const activeModels = $('.ocr-active-check:checked').map((_, el) => el.value).get();
+    $.ajax({
+      url: '/api/ocr/active',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ activeModels }),
+      success: () => showToast('Active models saved', 'success'),
+      error: () => showToast('Failed to save active models', 'error')
+    });
+  }
+
+  /** Hot-reloads the OCR engine with the currently-saved settings. */
+  function reloadOcrEngine() {
+    // First save the active model checkboxes
+    const activeModels = $('.ocr-active-check:checked').map((_, el) => el.value).get();
+    $.ajax({
+      url: '/api/ocr/active',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ activeModels }),
+      success: () => {
+        $.ajax({
+          url: '/api/ocr/reload',
+          method: 'POST',
+          success: () => showToast('OCR engine reloaded successfully!', 'success'),
+          error: data => showToast('Reload failed: ' + (data.responseJSON?.error || 'unknown'), 'error')
+        });
+      }
+    });
+  }
+
   function formatDate(dtStr) {
     if (!dtStr) return '—';
     try {
@@ -1390,7 +1590,12 @@ const SmartGallery = (() => {
     navLightbox,
     closeDetailPanel,
     removeTagFromSelected,
-    saveAdvancedSettings
+    saveAdvancedSettings,
+    copyOcrText,
+    downloadOcrModel,
+    setOcrHardware,
+    setActiveModels,
+    reloadOcrEngine
   };
 
 })();
