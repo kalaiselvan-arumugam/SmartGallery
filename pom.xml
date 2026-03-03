@@ -66,6 +66,18 @@
             <version>2.19.0</version>
         </dependency>
 
+        <!-- RapidOCR for Text Extraction -->
+        <dependency>
+            <groupId>io.github.mymonstercat</groupId>
+            <artifactId>rapidocr</artifactId>
+            <version>0.0.7</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.mymonstercat</groupId>
+            <artifactId>rapidocr-onnx-platform</artifactId>
+            <version>0.0.7</version>
+        </dependency>
+
         <!-- Jackson for JSON (included via web starter, explicit for version clarity) -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
