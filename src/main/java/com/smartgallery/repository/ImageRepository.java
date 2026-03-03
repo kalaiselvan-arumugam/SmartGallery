@@ -41,6 +41,16 @@ public interface ImageRepository extends JpaRepository<ImageEntity, Long> {
     @Query("SELECT i FROM ImageEntity i WHERE LOWER(CAST(i.extraJson AS string)) LIKE :tagPattern")
     List<ImageEntity> findByTagCaseInsensitive(@Param("tagPattern") String tagPattern);
 
+    @Query("SELECT i FROM ImageEntity i WHERE LOWER(CAST(i.extractedText AS string)) LIKE :textPattern")
+    List<ImageEntity> findByExtractedTextCaseInsensitive(@Param("textPattern") String textPattern);
+
+    /**
+     * Raw LIKE on extractedText — used for non-ASCII (Tamil, Arabic, Chinese etc.)
+     * where LOWER() is a no-op.
+     */
+    @Query("SELECT i FROM ImageEntity i WHERE CAST(i.extractedText AS string) LIKE :textPattern")
+    List<ImageEntity> findByExtractedTextRaw(@Param("textPattern") String textPattern);
+
     @Query("SELECT i FROM ImageEntity i WHERE LOWER(i.filePath) LIKE LOWER(CONCAT('%', :name, '%'))")
     List<ImageEntity> findByFileNameContaining(@Param("name") String name);
 
