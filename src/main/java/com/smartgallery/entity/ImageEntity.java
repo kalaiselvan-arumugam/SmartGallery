@@ -59,6 +59,9 @@ public class ImageEntity {
     @Column(name = "extra_json", columnDefinition = "CLOB")
     private String extraJson;
 
+    @Column(name = "extracted_text", columnDefinition = "TEXT")
+    private String extractedText;
+
     @Column(name = "status", length = 32)
     private String status = "INDEXED"; // INDEXED | ERROR | PENDING
 
@@ -207,5 +210,13 @@ public class ImageEntity {
 
     public void setLongitude(Double longitude) {
         this.longitude = longitude;
+    }
+
+    public String getExtractedText() {
+        return extractedText;
+    }
+
+    public void setExtractedText(String extractedText) {
+        this.extractedText = extractedText;
     }
 }
