@@ -24,3 +24,6 @@ buildNumber.properties
 # Application specific
 data/
 *.log
+hs_err_pid*.log
+data/temp_ocr*
+checkstyle-report.txt
