@@ -7,7 +7,7 @@
     <title>SmartGallery</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="description" content="Offline AI-powered image search using CLIP semantic embeddings" />
-    <link rel="stylesheet" href="/app.css" />
+    <link rel="stylesheet" href="/app.css?v=16" />
     <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
@@ -46,6 +46,9 @@
                 </div>
                 <button class="icon-btn" id="btn-reindex" title="Re-index all folders">
                     <span class="material-symbols-outlined">refresh</span>
+                </button>
+                <button class="icon-btn" id="btn-theme-toggle" title="Toggle Light/Dark Mode" onclick="SmartGallery.toggleTheme()">
+                    <span id="theme-icon" class="material-symbols-outlined">light_mode</span>
                 </button>
                 <button class="icon-btn" id="btn-settings" title="Settings">
                     <span class="material-symbols-outlined">settings</span>
@@ -103,11 +106,6 @@
                 <div id="toolbar">
                     <div class="toolbar-left">
                         <span id="indexed-count"><span id="result-count">0</span> results</span>
-                        <div class="filter-chips" id="filter-chips">
-                            <button class="filter-chip" data-filter="all" onclick="SmartGallery.setFilter('all',this)">
-                                <span class="material-symbols-outlined">grid_view</span> All
-                            </button>
-                        </div>
                     </div>
                     <div class="toolbar-right">
                         <div class="size-slider-wrap">
@@ -165,7 +163,7 @@
             <!-- ─── DETAIL PANEL ──────────────────────────────────────────────── -->
             <aside id="detail-panel">
                 <button id="close-detail-btn" class="icon-btn" 
-                    style="position:absolute; top:12px; right:12px; z-index:10; background:rgba(0,0,0,0.2); width:28px; height:28px;">
+                    style="position:absolute; top:12px; right:12px; z-index:10; width:28px; height:28px;">
                     <span class="material-symbols-outlined" style="font-size:18px">close</span>
                 </button>
                 <div class="detail-header" style="position:relative;">
@@ -210,7 +208,7 @@
                             </button>
                         </div>
                         <div id="dp-ocr-text"
-                            style="font-size:12px; color:var(--text); max-height:100px; overflow-y:auto; overflow-x:hidden; word-break:break-word; white-space:pre-wrap; background:rgba(0,0,0,0.1); padding:8px; border-radius:4px; margin-top:8px;">
+                            style="font-size:12px; color:var(--text); max-height:100px; overflow-y:auto; overflow-x:hidden; word-break:break-word; white-space:pre-wrap; background:var(--active); padding:8px; border-radius:4px; margin-top:8px;">
                         </div>
                     </div>
                     <div class="detail-section">
@@ -394,7 +392,7 @@
                         <h2>OCR Settings</h2>
                     </div>
                     <div class="tab-body">
-                        <div style="max-width:700px">
+                        <div class="tab-content-inner">
 
                             <!-- Section 1: Toggles -->
                             <h4 style="margin:0 0 12px;font-size:16px;color:var(--text);font-weight:700">General Options</h4>
@@ -436,7 +434,7 @@
                         <h2>Advanced Settings</h2>
                     </div>
                     <div class="tab-body">
-                        <div style="max-width:540px">
+                        <div class="tab-content-inner">
 
                             <div
                                 style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px;border-bottom:1px solid var(--border)">
@@ -531,7 +529,7 @@
     <!-- ═══ SCRIPTS ═══════════════════════════════════════════════════════ -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"
         integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-    <script src="/app.js?v=14"></script>
+    <script src="/app.js?v=16"></script>
 
     <!-- ─── LIGHTBOX PREVIEW (HIDDEN) ─────────────────────────────────── -->
     <div id="lightbox" class="lightbox-overlay">

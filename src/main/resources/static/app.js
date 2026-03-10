@@ -853,10 +853,6 @@ const SmartGallery = (() => {
     });
   }
 
-  function setFilter(filter, el) {
-    $('.filter-chip').removeClass('active');
-    $(el).addClass('active');
-  }
 
   // ─── Filters ─────────────────────────────────────────────────────────
   function buildFilters() {
@@ -1038,6 +1034,14 @@ const SmartGallery = (() => {
       $('#threshold-slider').val(data.searchThreshold);
       $('#threshold-val').text(data.searchThreshold.toFixed(2));
       $('#ocr-lang-select').val(state.ocrLanguage);
+      
+      if (data.uiTheme === 'light') {
+        $('body').addClass('light-mode');
+        $('#theme-icon').text('dark_mode');
+      } else {
+        $('body').removeClass('light-mode');
+        $('#theme-icon').text('light_mode');
+      }
     });
   }
 
@@ -1404,6 +1408,16 @@ const SmartGallery = (() => {
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
   }
 
+  function saveSetting(key, value) {
+    $.ajax({
+      url: '/api/settings/advanced',
+      method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ [key]: value }),
+      error: () => showToast('Failed to save ' + key, 'error')
+    });
+  }
+
   function escHtml(s) {
     if (!s) return '';
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1589,9 +1603,24 @@ const SmartGallery = (() => {
     } catch (e) { return dtStr; }
   }
 
+  function toggleTheme() {
+    const $body = $('body');
+    const isLight = $body.hasClass('light-mode');
+    
+    if (isLight) {
+      $body.removeClass('light-mode');
+      $('#theme-icon').text('light_mode');
+      saveSetting('uiTheme', 'dark');
+    } else {
+      $body.addClass('light-mode');
+      $('#theme-icon').text('dark_mode');
+      saveSetting('uiTheme', 'light');
+    }
+  }
+
   // ─── Public API ───────────────────────────────────────────────────────
   return {
-    init, browse, browseFolder, setFilter, setView,
+    init, browse, browseFolder, setView,
     reindex,
     openSettings, closeSettings, switchTab,
     saveToken, clearToken, downloadModels, verifyModels,
@@ -1606,7 +1635,8 @@ const SmartGallery = (() => {
     copyOcrText,
     downloadOcrModel,
     setActiveModels,
-    reloadOcrEngine
+    reloadOcrEngine,
+    toggleTheme
   };
 
 })();

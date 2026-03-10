@@ -59,6 +59,16 @@ public class SettingsController {
     }
 
     /**
+     * Returns a specific setting value by key.
+     */
+    @GetMapping("/{key}")
+    public ResponseEntity<String> getSetting(@PathVariable String key) {
+        return settingsService.getSetting(key)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
      * Saves the Hugging Face API token (encrypted).
      * POST /api/settings/token
      * Body: { "token": "hf_xxxx..." }
@@ -114,6 +124,7 @@ public class SettingsController {
                 .map(Boolean::parseBoolean).orElse(true);
         boolean ocrCopyEnabled = settingsService.getSetting(SettingsService.KEY_OCR_COPY_ENABLED)
                 .map(Boolean::parseBoolean).orElse(true);
+        String uiTheme = settingsService.getSetting(SettingsService.KEY_UI_THEME).orElse("dark");
 
         return ResponseEntity.ok(Map.of(
                 "exifEnabled", exifEnabled,
@@ -122,7 +133,8 @@ public class SettingsController {
                 "autoIndexingEnabled", autoIndexing,
                 "searchThreshold", threshold,
                 "ocrIndexingEnabled", ocrIndexingEnabled,
-                "ocrCopyEnabled", ocrCopyEnabled));
+                "ocrCopyEnabled", ocrCopyEnabled,
+                "uiTheme", uiTheme));
     }
 
     /**
@@ -171,6 +183,13 @@ public class SettingsController {
         }
         if (body.containsKey("ocrCopyEnabled")) {
             settingsService.saveSetting(SettingsService.KEY_OCR_COPY_ENABLED, body.get("ocrCopyEnabled").toString());
+        }
+        if (body.containsKey("uiTheme")) {
+            settingsService.saveSetting(SettingsService.KEY_UI_THEME, body.get("uiTheme").toString());
+        }
+        // Generic key/value support
+        if (body.containsKey("key") && body.containsKey("value")) {
+            settingsService.saveSetting(body.get("key").toString(), body.get("value").toString());
         }
         return ResponseEntity.ok(Map.of("status", "saved"));
     }
