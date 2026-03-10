@@ -47,7 +47,7 @@
                 <button class="icon-btn" id="btn-reindex" title="Re-index all folders">
                     <span class="material-symbols-outlined">refresh</span>
                 </button>
-                <button class="icon-btn" id="btn-settings" title="Settings" onclick="SmartGallery.openSettings()">
+                <button class="icon-btn" id="btn-settings" title="Settings">
                     <span class="material-symbols-outlined">settings</span>
                 </button>
             </div>
@@ -82,7 +82,7 @@
                     <div
                         style="display:flex;align-items:center;justify-content:space-between;padding:0 8px;margin-bottom:6px">
                         <div class="sidebar-label" style="margin-bottom:0">ALBUMS</div>
-                        <button onclick="SmartGallery.openSettings('folders')" style="color:var(--text-dim)"
+                        <button id="btn-add-folder" style="color:var(--text-dim)"
                             title="Manage folders">
                             <span class="material-symbols-outlined" style="font-size:16px">add</span>
                         </button>
@@ -164,6 +164,10 @@
 
             <!-- ─── DETAIL PANEL ──────────────────────────────────────────────── -->
             <aside id="detail-panel">
+                <button id="close-detail-btn" class="icon-btn" 
+                    style="position:absolute; top:12px; right:12px; z-index:10; background:rgba(0,0,0,0.2); width:28px; height:28px;">
+                    <span class="material-symbols-outlined" style="font-size:18px">close</span>
+                </button>
                 <div class="detail-header" style="position:relative;">
                     <div class="detail-filename" id="detail-filename">—</div>
                     <div class="detail-date" id="detail-date">—</div>
@@ -254,214 +258,214 @@
     <!-- ═══ SETTINGS MODAL ════════════════════════════════════════════════ -->
     <div id="modal-overlay" onclick="SmartGallery.closeSettings(event)">
         <div id="settings-modal">
-            <div class="modal-header">
-                <div style="display:flex;align-items:center;gap:10px">
-                    <span class="material-symbols-outlined" style="color:var(--primary)">settings</span>
-                    <span class="modal-title">Settings</span>
+            <!-- ── Sidebar Tabs ── -->
+            <div class="settings-sidebar">
+                <button class="settings-tab active" data-tab="models" onclick="SmartGallery.switchTab('models',this)">
+                    <span class="material-symbols-outlined">psychology</span> AI Models
+                </button>
+                <button class="settings-tab" data-tab="folders" onclick="SmartGallery.switchTab('folders',this)">
+                    <span class="material-symbols-outlined">folder</span> Folders
+                </button>
+                <button class="settings-tab" data-tab="ocr" onclick="SmartGallery.switchTab('ocr',this)">
+                    <span class="material-symbols-outlined">document_scanner</span> OCR Settings
+                </button>
+                <button class="settings-tab" data-tab="advanced" onclick="SmartGallery.switchTab('advanced',this)">
+                    <span class="material-symbols-outlined">settings</span> Advanced
+                </button>
+            </div>
+
+            <div class="settings-content">
+                <div class="modal-header">
+                    <button class="modal-close" onclick="SmartGallery.closeSettings()">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
                 </div>
-                <button class="modal-close" onclick="SmartGallery.closeSettings()">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
 
-            <!-- ── Tabs ── -->
-            <div style="display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 24px">
-                <button class="modal-tab active" data-tab="models" onclick="SmartGallery.switchTab('models',this)"
-                    style="padding:10px 16px;font-size:13px;font-weight:600;color:var(--primary);border-bottom:2px solid var(--primary);background:none;border-top:none;border-left:none;border-right:none;cursor:pointer;margin-bottom:-1px">
-                    AI Models
-                </button>
-                <button class="modal-tab" data-tab="folders" onclick="SmartGallery.switchTab('folders',this)"
-                    style="padding:10px 16px;font-size:13px;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;cursor:pointer;margin-bottom:-1px">
-                    Folders
-                </button>
-                <button class="modal-tab" data-tab="advanced" onclick="SmartGallery.switchTab('advanced',this)"
-                    style="padding:10px 16px;font-size:13px;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;cursor:pointer;margin-bottom:-1px">
-                    Advanced
-                </button>
-                <button class="modal-tab" data-tab="ocr" onclick="SmartGallery.switchTab('ocr',this)"
-                    style="padding:10px 16px;font-size:13px;font-weight:500;color:var(--text-muted);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;cursor:pointer;margin-bottom:-1px">
-                    OCR Settings
-                </button>
-            </div>
-
-            <div class="modal-body">
+                <div class="modal-body">
 
                 <!-- ── Models Tab ── -->
-                <div id="tab-models" class="tab-pane modal-cols">
-                    <!-- Left: Token + Download -->
-                    <div class="modal-col">
-                        <div class="form-group">
-                            <label class="form-label">Hugging Face Token</label>
-                            <input id="hf-token-input" class="form-input" type="password" placeholder="hf_..."
-                                autocomplete="off" />
-                            <p class="form-hint">Required once for model download. Stored encrypted on this machine.</p>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Model Repository</label>
-                            <input id="hf-repo-input" class="form-input" type="text"
-                                value="Xenova/clip-vit-base-patch32" placeholder="owner/repo" />
-                            <p class="form-hint">ONNX-format CLIP model repo on Hugging Face</p>
-                        </div>
-                        <div class="btn-row" style="margin-bottom:16px">
-                            <button class="btn-primary btn-sm" onclick="SmartGallery.saveToken()">
-                                <span class="material-symbols-outlined" style="font-size:15px">save</span> Save Token
-                            </button>
-                            <button class="btn-secondary btn-sm" onclick="SmartGallery.clearToken()">
-                                <span class="material-symbols-outlined" style="font-size:15px">delete</span> Clear
-                            </button>
-                        </div>
-                        <div class="btn-row">
-                            <button class="btn-primary" id="btn-download-models"
-                                onclick="SmartGallery.downloadModels()">
-                                <span class="material-symbols-outlined">cloud_download</span> Download Models
-                            </button>
-                            <button class="btn-secondary btn-sm" onclick="SmartGallery.verifyModels()">
-                                <span class="material-symbols-outlined" style="font-size:15px">verified</span> Verify
-                            </button>
-                        </div>
-                        <div class="progress-wrap" id="download-progress-wrap" style="display:none">
-                            <div class="progress-label">
-                                <span id="progress-file-label">Downloading...</span>
-                                <span id="progress-pct">0%</span>
+                <div id="tab-models" class="tab-pane" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+                    <div class="tab-header">
+                        <h2>AI Models</h2>
+                    </div>
+                    <!-- Two-column scrollable layout -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;flex:1;overflow:hidden;">
+                        <!-- LEFT: Token + Buttons -->
+                        <div class="tab-body" style="border-right:1px solid var(--border);display:flex;flex-direction:column;gap:16px;">
+                            <!-- Hugging Face Token -->
+                            <div>
+                                <label class="form-label">Hugging Face Token</label>
+                                <input id="hf-token-input" class="form-input" type="password" placeholder="hf_..." autocomplete="off" style="margin-bottom:4px"/>
+                                <p class="form-hint">Required once for model download. Stored encrypted on this machine.</p>
                             </div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" id="progress-fill"></div>
+                            <!-- Model Repository -->
+                            <div>
+                                <label class="form-label">Model Repository</label>
+                                <input id="hf-repo-input" class="form-input" type="text" value="Xenova/clip-vit-base-patch32" placeholder="owner/repo" style="margin-bottom:4px"/>
+                                <p class="form-hint">ONNX-format CLIP model repo on Hugging Face</p>
+                            </div>
+                            <!-- Save Token / Clear -->
+                            <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+                                <button class="btn-primary" onclick="SmartGallery.saveToken()" style="justify-content:center;">
+                                    <span class="material-symbols-outlined" style="font-size:16px">save</span> Save Token
+                                </button>
+                                <button class="btn-secondary" onclick="SmartGallery.clearToken()" style="justify-content:center;">
+                                    <span class="material-symbols-outlined" style="font-size:16px">delete</span> Clear
+                                </button>
+                            </div>
+                            <!-- Download Models / Verify -->
+                            <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+                                <button class="btn-primary" id="btn-download-models" onclick="SmartGallery.downloadModels()" style="justify-content:center;">
+                                    <span class="material-symbols-outlined" style="font-size:16px">cloud_download</span> Download Models
+                                </button>
+                                <button class="btn-secondary" onclick="SmartGallery.verifyModels()" style="justify-content:center;">
+                                    <span class="material-symbols-outlined" style="font-size:16px">verified</span> Verify
+                                </button>
+                            </div>
+                            <!-- Progress bar moved to right col -->
+                        </div>
+
+                        <!-- RIGHT: Model Status -->
+                        <div class="tab-body" style="display:flex;flex-direction:column;gap:16px;">
+                            <!-- Header row -->
+                            <div style="display:flex;align-items:center;justify-content:space-between;">
+                                <span style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);text-transform:uppercase;">Model Status</span>
+                                <div id="modal-model-badge" style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid currentColor;color:var(--text-dim);background:transparent;">UNKNOWN</div>
+                            </div>
+                            <!-- Model files list -->
+                            <div id="model-files-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+                            <!-- Overall progress and current download progress container -->
+                            <div style="margin-top:auto;display:flex;flex-direction:column;gap:16px;">
+                                <!-- Progress bar (hidden until download) -->
+                                <div class="progress-wrap" id="download-progress-wrap" style="display:none;">
+                                    <div class="progress-label" style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+                                        <span id="progress-file-label">Downloading...</span>
+                                        <span id="progress-pct" style="font-weight:600;color:var(--text);">0%</span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" id="progress-fill"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Overall progress (shown after verify/download) -->
+                                <div id="model-overall-progress" style="display:none;padding-top:16px;border-top:1px solid var(--border);">
+                                    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+                                        <span id="model-overall-msg">All models downloaded and loaded.</span>
+                                        <span id="model-overall-pct" style="font-weight:600;color:var(--text);">100%</span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill success" id="model-overall-bar" style="width:100%"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <!-- Right: Model status -->
-                    <div class="modal-col">
-                        <div style="margin-bottom:12px">
-                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-                                <span class="detail-section-label" style="margin-bottom:0">Model Status</span>
-                                <div id="modal-model-badge"
-                                    style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--active);color:var(--text-dim)">
-                                    UNKNOWN</div>
-                            </div>
-                            <div id="model-files-list"></div>
-                        </div>
-                        <div class="detail-section-label">Download Log</div>
-                        <div id="download-log"></div>
+                    
+                    <!-- Fixed Download Log at bottom -->
+                    <div style="padding:16px 24px;border-top:1px solid var(--border);background:var(--surface);height:140px;display:flex;flex-direction:column;flex-shrink:0;">
+                        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:var(--text-dim);text-transform:uppercase;margin-bottom:6px;">Download Log</div>
+                        <div id="download-log" style="flex:1;overflow-y:auto;background:var(--surface-alt);border-radius:var(--radius);padding:10px;font-family:monospace;font-size:12px;color:var(--text-dim);border:1px solid var(--border);"></div>
                     </div>
                 </div>
 
                 <!-- ── Folders Tab ── -->
-                <div id="tab-folders" class="tab-pane" style="display:none;padding:24px">
-                    <div style="display:flex;gap:8px;margin-bottom:16px">
-                        <input id="new-folder-input" class="form-input" type="text"
-                            placeholder="C:\Users\me\Pictures or ./data/images" style="flex:1" />
-                        <button class="btn-primary btn-sm" onclick="SmartGallery.addFolder()">
-                            <span class="material-symbols-outlined" style="font-size:15px">add</span> Add
-                        </button>
+                <div id="tab-folders" class="tab-pane" style="display:none;height:100%;flex-direction:column;overflow:hidden;">
+                    <div class="tab-header">
+                        <h2>Watched Folders</h2>
+                        <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted);">Automatically index and monitor new images added to these directories.</p>
                     </div>
-                    <div id="folders-list"></div>
-                    <p class="form-hint" style="margin-top:12px">
-                        Folders are watched continuously. New images added to them are indexed automatically.
-                        Multiple folders can be monitored simultaneously.
-                    </p>
+                    <div class="tab-body">
+                        <!-- Add folder row -->
+                        <div style="display:flex;gap:8px;margin-bottom:20px">
+                            <input id="new-folder-input" class="form-input" type="text"
+                                placeholder="C:\Users\me\Pictures or ../data/images" style="flex:1" />
+                            <button class="btn-primary btn-sm" onclick="SmartGallery.addFolder()" style="white-space:nowrap">
+                                <span class="material-symbols-outlined" style="font-size:15px">add</span> Add Folder
+                            </button>
+                        </div>
+                        <!-- Folder entries rendered by JS -->
+                        <div id="folders-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+                    </div>
                 </div>
 
                 <!-- ── OCR Tab ── -->
-                <div id="tab-ocr" class="tab-pane" style="display:none;padding:24px;overflow-y:auto">
-                    <div style="max-width:600px">
+                <div id="tab-ocr" class="tab-pane" style="display:none;height:100%;flex-direction:column;overflow:hidden;">
+                    <div class="tab-header">
+                        <h2>OCR Settings</h2>
+                    </div>
+                    <div class="tab-body">
+                        <div style="max-width:700px">
 
-                        <!-- Section 1: Toggles -->
-                        <div
-                            style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px;border-bottom:1px solid var(--border)">
-                            <div style="flex:1;padding-right:16px">
-                                <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Enable OCR
-                                    Indexing</h4>
-                                <p class="form-hint" style="margin:4px 0 0">Auto-extract text from images for full-text
-                                    search. Toggling ON will scan unprocessed images in the background.</p>
+                            <!-- Section 1: Toggles -->
+                            <h4 style="margin:0 0 12px;font-size:16px;color:var(--text);font-weight:700">General Options</h4>
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 16px;border-bottom:1px solid var(--border)">
+                                 <div style="flex:1;padding-right:16px">
+                                     <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Auto-extract text</h4>
+                                     <p class="form-hint" style="margin:4px 0 0">Automatically scan and extract text from images for full-text search. (Scanning happens in the background.)</p>
+                                 </div>
+                                 <label class="switch"><input type="checkbox" id="ocr-indexing-toggle" onchange="SmartGallery.saveAdvancedSettings()"><span class="slider"></span></label>
                             </div>
-                            <label class="switch">
-                                <input type="checkbox" id="ocr-indexing-toggle"
-                                    onchange="SmartGallery.saveAdvancedSettings()">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                        <div
-                            style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)">
-                            <div style="flex:1;padding-right:16px">
-                                <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Enable UI Text
-                                    Copying</h4>
-                                <p class="form-hint" style="margin:4px 0 0">Show extracted text in the detail panel and
-                                    allow copying to clipboard.</p>
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 0 24px;">
+                                 <div style="flex:1;padding-right:16px">
+                                     <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Enable UI Text Copying</h4>
+                                     <p class="form-hint" style="margin:4px 0 0">Show extracted text in the detail panel and allow copying to clipboard.</p>
+                                 </div>
+                                 <label class="switch"><input type="checkbox" id="ocr-copy-toggle" onchange="SmartGallery.saveAdvancedSettings()"><span class="slider"></span></label>
                             </div>
-                            <label class="switch">
-                                <input type="checkbox" id="ocr-copy-toggle"
-                                    onchange="SmartGallery.saveAdvancedSettings()">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
 
-                        <!-- Hardware Mode removed for Tess4J (CPU only) -->
-
-                        <!-- Section 3A: Available Language Models (Download) -->
-                        <div style="padding:16px 0 8px">
-                            <h4 style="margin:0 0 4px;font-size:14px;color:var(--text);font-weight:600">Language Models
-                            </h4>
-                            <p class="form-hint" style="margin:0 0 12px">Download models for languages you need. Each
-                                pack is ~5–20 MB.</p>
-                            <div id="ocr-model-table">
-                                <div style="text-align:center;color:var(--text-muted);padding:16px">Loading models…
+                            <!-- Language Models Table -->
+                            <h4 style="margin:0 0 12px;font-size:16px;color:var(--text);font-weight:700">Language Models</h4>
+                            <div style="border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:16px">
+                                <div id="ocr-model-table">
+                                    <div style="text-align:center;color:var(--text-muted);padding:16px">Loading models…</div>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Section 3B: Active Models (Activate) -->
-                        <div style="padding:16px 0 8px;border-top:1px solid var(--border)">
-                            <h4 style="margin:0 0 4px;font-size:14px;color:var(--text);font-weight:600">Active Models
-                                for Scanning</h4>
-                            <p class="form-hint" style="margin:0 0 12px">Select which downloaded models to use during
-                                OCR. You can combine languages — each image is scanned with all selected models and
-                                results are merged.</p>
-                            <div id="ocr-active-checklist">
-                                <div style="color:var(--text-muted);font-size:12px">No models downloaded yet. Download
-                                    at least one above.</div>
+                            
+                            <div style="text-align:right;">
+                                <button class="btn-primary" onclick="SmartGallery.reloadOcrEngine()" style="padding:10px 20px;">
+                                    Apply Changes
+                                </button>
                             </div>
-                            <button class="btn-primary" style="margin-top:12px"
-                                onclick="SmartGallery.reloadOcrEngine()">
-                                <span class="material-symbols-outlined" style="font-size:15px">refresh</span> Reload OCR
-                                Engine to Apply
-                            </button>
                         </div>
-
                     </div>
                 </div>
 
                 <!-- ── Advanced Tab ── -->
-                <div id="tab-advanced" class="tab-pane" style="display:none;padding:24px">
-                    <div style="max-width:540px">
+                <div id="tab-advanced" class="tab-pane" style="display:none;height:100%;flex-direction:column;overflow:hidden;">
+                    <div class="tab-header">
+                        <h2>Advanced Settings</h2>
+                    </div>
+                    <div class="tab-body">
+                        <div style="max-width:540px">
 
-                        <div
-                            style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px;border-bottom:1px solid var(--border)">
-                            <div style="flex:1;padding-right:16px">
-                                <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Show/Hide EXIF
-                                    Data</h4>
-                                <p class="form-hint" style="margin:4px 0 0">Show or hide camera info in the image detail
-                                    panel.</p>
+                            <div
+                                style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px;border-bottom:1px solid var(--border)">
+                                <div style="flex:1;padding-right:16px">
+                                    <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Show/Hide EXIF
+                                        Data</h4>
+                                    <p class="form-hint" style="margin:4px 0 0">Show or hide camera info in the image detail
+                                        panel.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="exif-visible-toggle"
+                                        onchange="SmartGallery.saveAdvancedSettings()">
+                                    <span class="slider"></span>
+                                </label>
                             </div>
-                            <label class="switch">
-                                <input type="checkbox" id="exif-visible-toggle"
-                                    onchange="SmartGallery.saveAdvancedSettings()">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
 
-                        <div
-                            style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)">
-                            <div style="flex:1;padding-right:16px">
-                                <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Show/Hide Map</h4>
-                                <p class="form-hint" style="margin:4px 0 0">Show or hide the location map in the detail
-                                    panel (Dependent on EXIF).</p>
+                            <div
+                                style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)">
+                                <div style="flex:1;padding-right:16px">
+                                    <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Show/Hide Map</h4>
+                                    <p class="form-hint" style="margin:4px 0 0">Show or hide the location map in the detail
+                                        panel (Dependent on EXIF).</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="map-visible-toggle"
+                                        onchange="SmartGallery.saveAdvancedSettings()">
+                                    <span class="slider"></span>
+                                </label>
                             </div>
-                            <label class="switch">
-                                <input type="checkbox" id="map-visible-toggle"
-                                    onchange="SmartGallery.saveAdvancedSettings()">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
 
                         <div
                             style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)">
@@ -515,20 +519,22 @@
 
                     </div>
                 </div>
+            </div>
             </div><!-- /.modal-body -->
 
         </div>
-    </div><!-- /#modal-overlay -->
+    </div><!-- /#settings-modal -->
+</div><!-- /#modal-overlay -->
 
 
 
     <!-- ═══ SCRIPTS ═══════════════════════════════════════════════════════ -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"
         integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=14"></script>
 
     <!-- ─── LIGHTBOX PREVIEW (HIDDEN) ─────────────────────────────────── -->
-    <div id="lightbox" class="lightbox-overlay" style="display:none;">
+    <div id="lightbox" class="lightbox-overlay">
         <button class="lightbox-close" onclick="SmartGallery.closeLightbox()">
             <span class="material-symbols-outlined">close</span>
         </button>

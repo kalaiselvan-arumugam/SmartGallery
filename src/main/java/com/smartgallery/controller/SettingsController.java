@@ -235,4 +235,39 @@ public class SettingsController {
                     "folderPath", entity.getFolderPath()));
         }).orElseGet(() -> ResponseEntity.notFound().build());
     }
+
+    /**
+     * Toggles the active (watching) state of a watched folder.
+     * PATCH /api/settings/folders/{id}/active
+     * Body: { "active": true | false }
+     */
+    @PatchMapping("/folders/{id}/active")
+    public ResponseEntity<? extends Map<String, ? extends Object>> setFolderActive(
+            @PathVariable Long id,
+            @RequestBody Map<String, Boolean> body) {
+
+        Boolean active = body.get("active");
+        if (active == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "active field is required"));
+        }
+
+        return watchedFolderRepository.findById(id).map(entity -> {
+            try {
+                if (active) {
+                    watcherService.activateWatchFolder(entity.getFolderPath());
+                } else {
+                    watcherService.removeWatchFolder(entity.getFolderPath());
+                }
+                Map<String, Object> response = new LinkedHashMap<>();
+                response.put("status", active ? "watching" : "paused");
+                response.put("id", entity.getId());
+                response.put("folderPath", entity.getFolderPath());
+                response.put("active", active);
+                return ResponseEntity.ok(response);
+            } catch (Exception e) {
+                return ResponseEntity.internalServerError()
+                        .body(Map.of("error", "Failed to update folder: " + e.getMessage()));
+            }
+        }).orElseGet(() -> ResponseEntity.notFound().build());
+    }
 }

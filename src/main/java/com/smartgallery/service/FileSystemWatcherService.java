@@ -134,6 +134,23 @@ public class FileSystemWatcherService {
     }
 
     /**
+     * Re-activates a previously paused folder: sets active=true and re-registers
+     * directory tree with the WatchService.
+     */
+    public void activateWatchFolder(String folderPath) throws IOException {
+        Path dir = Paths.get(folderPath).toAbsolutePath().normalize();
+        if (!Files.isDirectory(dir)) {
+            throw new IllegalArgumentException("Path is not a directory: " + dir);
+        }
+        watchedFolderRepository.findByFolderPath(dir.toString()).ifPresent(entity -> {
+            entity.setActive(true);
+            watchedFolderRepository.save(entity);
+        });
+        registerDirectoryTree(dir);
+        log.info("Re-activated watched folder: {}", dir);
+    }
+
+    /**
      * Ensures a folder path exists in DB and is being watched. Creates folder if
      * missing.
      */

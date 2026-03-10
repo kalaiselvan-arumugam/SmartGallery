@@ -11,23 +11,23 @@
 
 /* ─── CSS Custom Properties ──────────────────────────────────────────── */
 :root {
-  --bg: #111827;
-  --surface: #1f2937;
-  --surface-alt: #161e2e;
-  --active: #374151;
-  --border: #374151;
-  --primary: #2b75ee;
-  --primary-dim: rgba(43, 117, 238, 0.15);
-  --text: #f1f5f9;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
+  --bg: #0d0d0d;
+  --surface: #1a1a1a;
+  --surface-alt: #141414;
+  --active: #2a2a2a;
+  --border: #2e2e2e;
+  --primary: #c8c8c8;
+  --primary-dim: rgba(200, 200, 200, 0.12);
+  --text: #f0f0f0;
+  --text-muted: #9a9a9a;
+  --text-dim: #5c5c5c;
   --green: #22c55e;
   --yellow: #eab308;
   --red: #ef4444;
   --orange: #f97316;
   --radius: 0.5rem;
   --radius-lg: 0.75rem;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
   --transition: all 0.18s ease;
   --sidebar-w: 260px;
   --header-h: 56px;
@@ -625,17 +625,18 @@ a {
 /* ─── Lightbox ───────────────────────────────────────────────────────── */
 .lightbox-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: rgba(0, 0, 0, 0.9);
   z-index: 9999;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   animation: fadeIn 0.2s ease;
   overflow: auto;
+}
+
+.lightbox-overlay.visible {
+  display: flex !important;
 }
 
 .lightbox-img {
@@ -909,7 +910,10 @@ a {
   line-height: 1.6;
 }
 
-#empty-state .btn-primary {
+#empty-state .btn-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-top: 8px;
 }
 
@@ -950,7 +954,7 @@ a {
 /* ─── Right Detail Panel ─────────────────────────────────────────────── */
 #detail-panel {
   width: 280px;
-  background: rgba(31, 41, 55, 0.85);
+  background: rgba(18, 18, 18, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-left: 1px solid var(--border);
@@ -1015,30 +1019,30 @@ a {
 
 /* Privacy Toggle Icon Button */
 .privacy-toggle-btn {
-  width: 34px;
-  height: 34px;
+  width: 54px;
+  height: 36px;
   flex-shrink: 0;
-  border-radius: 50%;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-alt);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-dim);
   transition: var(--transition);
 }
 
 .privacy-toggle-btn:hover {
-  border-color: var(--text-muted);
+  border-color: rgba(255, 255, 255, 0.2);
   color: var(--text);
-  background: var(--active);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .privacy-toggle-btn.active {
-  background: var(--red);
-  color: white;
-  border-color: var(--red);
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--red);
+  border-color: rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.2);
 }
 
 .privacy-toggle-btn .material-symbols-outlined {
@@ -1159,52 +1163,58 @@ a {
 .detail-actions {
   padding: 12px;
   border-top: 1px solid var(--border);
-  display: grid;
-  grid-template-columns: auto 1fr 1fr;
+  display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(31, 41, 55, 0.5);
+  background: rgba(18, 18, 18, 0.5);
 }
 
 .btn-block {
   flex: 1;
+  width: 100%;
   justify-content: center;
 }
 
 /* ─── Buttons ─────────────────────────────────────────────────────────── */
 .btn-primary {
   background: var(--primary);
-  color: #fff;
+  color: #111;
   border: none;
   border-radius: var(--radius);
-  padding: 8px 16px;
+  height: 36px;
+  padding: 0 16px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--transition);
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  white-space: nowrap;
 }
 
 .btn-primary:hover {
-  background: #1d5fd6;
-  box-shadow: 0 4px 12px rgba(43, 117, 238, 0.4);
+  background: #e8e8e8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .btn-secondary {
   background: var(--active);
   color: var(--text);
-  border: none;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 8px 16px;
+  height: 36px;
+  padding: 0 16px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: var(--transition);
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  white-space: nowrap;
 }
 
 .btn-secondary:hover {
@@ -1216,7 +1226,8 @@ a {
   color: var(--red);
   border: 1px solid rgba(239, 68, 68, 0.25);
   border-radius: var(--radius);
-  padding: 8px 16px;
+  height: 36px;
+  padding: 0 16px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -1231,7 +1242,8 @@ a {
 }
 
 .btn-sm {
-  padding: 5px 12px;
+  height: 32px;
+  padding: 0 14px;
   font-size: 12px;
 }
 
@@ -1260,15 +1272,67 @@ a {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  width: 780px;
-  height: 500px;
+  width: 900px;
+  height: 600px;
   max-width: calc(100vw - 32px);
-  max-height: 500px;
+  max-height: calc(100vh - 32px);
   overflow: hidden;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   box-shadow: var(--shadow);
   animation: modal-in 0.18s ease;
+}
+
+.settings-sidebar {
+  width: 220px;
+  background: var(--surface-alt);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 12px;
+  flex-shrink: 0;
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  border: none;
+  margin-bottom: 4px;
+}
+
+.settings-tab:hover {
+  background: var(--active);
+  color: var(--text);
+}
+
+.settings-tab.active {
+  background: var(--active);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.settings-tab .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.settings-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  overflow: hidden;
+  position: relative;
 }
 
 @keyframes modal-in {
@@ -1284,17 +1348,17 @@ a {
 }
 
 .modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 10;
 }
 
-.modal-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-close {
@@ -1302,15 +1366,13 @@ a {
   transition: var(--transition);
   font-size: 22px;
   display: flex;
+  padding: 2px;
+  border-radius: var(--radius);
 }
 
 .modal-close:hover {
   color: var(--text);
-}
-
-.modal-body {
-  flex: 1;
-  overflow-y: auto;
+  background: var(--active);
 }
 
 .modal-body::-webkit-scrollbar {
@@ -1342,6 +1404,32 @@ a {
 
 .modal-col+.modal-col {
   border-left: 1px solid var(--border);
+}
+
+.tab-header {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 5;
+  padding: 24px 24px 16px 24px;
+  border-bottom: 1px solid var(--border);
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tab-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tab-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
 }
 
 .form-group {
@@ -1503,44 +1591,83 @@ a {
   color: var(--red);
 }
 
-/* Folders list in settings */
-.folder-entry {
+/* Watched Folders cards in settings */
+.folder-card {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 12px;
+  padding: 14px 16px;
   border-radius: var(--radius);
-  background: var(--active);
-  margin-bottom: 6px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
 }
 
-.folder-entry-path {
+.folder-card-path {
   flex: 1;
-  font-size: 12px;
-  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.folder-entry-badge {
-  font-size: 10px;
-  color: var(--primary);
-  background: var(--primary-dim);
-  padding: 2px 6px;
-  border-radius: 999px;
+.folder-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
 }
 
-.folder-entry-remove {
-  color: var(--text-dim);
-  transition: var(--transition);
-  font-size: 16px;
-  cursor: pointer;
+.folder-card-status {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  min-width: 52px;
+  text-align: left;
 }
 
-.folder-entry-remove:hover {
+.folder-card-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.folder-card-remove:hover {
+  background: rgba(239, 68, 68, 0.1);
   color: var(--red);
+}
+
+/* Tab pane scrollable content */
+.tab-pane {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.tab-pane::-webkit-scrollbar {
+  width: 5px;
+}
+
+.tab-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-pane::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.tab-pane::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
 }
 
 .modal-footer {
@@ -1688,44 +1815,6 @@ a {
   }
 }
 
-/* ─── Context Menu ───────────────────────────────────────────────────── */
-.context-menu {
-  position: absolute;
-  z-index: 10000;
-  width: 200px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 6px 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.context-menu-item {
-  padding: 8px 16px;
-  font-size: 13px;
-  color: var(--text);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  transition: background 0.15s;
-}
-
-.context-menu-item:hover {
-  background: var(--active);
-}
-
-.context-menu-item .material-symbols-outlined {
-  font-size: 16px;
-  color: var(--text-dim);
-}
-
-.context-menu-item.text-danger {
-  color: var(--red);
-}
-
 /* ─── Privacy Blur ───────────────────────────────────────────────────── */
 .blurred-image {
   filter: blur(25px) brightness(0.8);
@@ -1746,16 +1835,6 @@ a {
   /* Let clicks pass through to the card */
   z-index: 2;
   transition: opacity 0.3s ease;
-}
-
-.context-menu-item.text-danger .material-symbols-outlined {
-  color: var(--red);
-}
-
-.context-menu-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 4px 0;
 }
 
 /* ─── Toggle Switch Component ────────────────────────────────────────── */

@@ -24,12 +24,10 @@ const SmartGallery = (() => {
     thumbCols: 5,         // current grid column count
     selectedId: null,     // currently selected image id
     currentQuery: '',
-    currentFilters: {},
     modelReady: false,
     sseSource: null,      // active EventSource for model download
     activeTab: 'models',  // settings modal active tab
-    watchedFolders: [],   // Added as per diff
-    currentLightboxIndex: -1, // Added as per diff
+    currentLightboxIndex: -1, 
     mapVisible: true,     // whether map is shown in UI
     exifVisible: true,    // Global EXIF display toggle
   };
@@ -76,7 +74,6 @@ const SmartGallery = (() => {
 
     $searchInput.on('keydown', e => {
       if (e.key === 'Enter') {
-        clearTimeout(SmartGallery._searchTimer);
         const q = $searchInput.val().trim();
         state.currentQuery = q;
         state.results = [];
@@ -112,6 +109,21 @@ const SmartGallery = (() => {
       }
     });
 
+    // Bind Global Header Buttons explicitly to avoid onclick attribute confusion
+    $('#btn-settings').off('click').on('click', e => {
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      openSettings();
+    });
+    $('#btn-reindex').off('click').on('click', e => {
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      reindex();
+    });
+    $('#btn-add-folder').off('click').on('click', e => {
+      e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      openSettings('folders');
+    });
+
+
     // Keyboard shortcuts for Lightbox
     $(document).on('keydown', e => {
       if ($('#lightbox').is(':visible')) {
@@ -123,6 +135,11 @@ const SmartGallery = (() => {
         else if (e.key === 'ArrowRight') navSelection(1);
         else if (e.key === 'ArrowLeft') navSelection(-1);
       }
+    });
+
+    $('#close-detail-btn').on('click', e => {
+      e.preventDefault(); e.stopPropagation();
+      closeDetailPanel();
     });
 
     // Close lightbox if clicking outside image
@@ -386,7 +403,7 @@ const SmartGallery = (() => {
 
       if (isListView) {
         card.innerHTML = `
-          <img class="${imgClass}" src="${thumbSrc}" alt="${escHtml(fileName)}" loading="lazy" onerror="this.src='/placeholder.svg'"/>
+          <img class="${imgClass}" src="${thumbSrc}" alt="${escHtml(fileName)}" loading="lazy" onerror="this.onerror=null; this.style.opacity='0.5';"/>
           <div class="list-meta">
             <div class="list-filename">${escHtml(fileName)}</div>
             <div class="list-detail">${item.width || '?'}×${item.height || '?'} · ${formatSize(item.fileSize)}</div>
@@ -404,38 +421,37 @@ const SmartGallery = (() => {
           ${blurOverlay}`;
       }
 
-      // Event handling for single vs double click
-      let clickTimer = null;
+      // --- High-Performance Interaction Handler ---
+      let lastClick = 0;
       $(card).on('click', e => {
-        if (!e.ctrlKey && e.button === 0) {
-          if (clickTimer) clearTimeout(clickTimer);
-          clickTimer = setTimeout(() => {
-            selectImage(item, index, true);
-          }, 250);
+        if (e.ctrlKey || e.button !== 0) return;
+        
+        const now = Date.now();
+        if (now - lastClick < 250) {
+          // FAST DOUBLE CLICK
+          lastClick = 0;
+          if (item.blurred) {
+            showToast('Privacy blur enabled. Untoggle to preview full image.', 'info');
+          } else {
+            openLightbox(item, index);
+          }
+        } else {
+          lastClick = now;
+          selectImage(item, index, false);
         }
       });
 
-      $(card).on('dblclick', e => {
-        if (!e.ctrlKey && e.button === 0) {
-          if (clickTimer) clearTimeout(clickTimer); // cancel single click
-          if (item.blurred) {
-            showToast('Privacy blur enabled. Untoggle to preview.', 'info');
-            return;
-          }
-          openLightbox(item, index);
-        }
+      $(card).on('contextmenu', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectImage(item, index, true);
       });
 
       // Handle Favorite Heart Click
       $(card).find('.card-favorite').on('click', function (e) {
         e.stopPropagation();
+        e.stopImmediatePropagation();
         toggleFavorite(item, this);
-      });
-
-      // Handle Right Click (Select and Show Detail Panel)
-      card.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        selectImage(item, index, true);
       });
 
       fragment.appendChild(card);
@@ -608,16 +624,15 @@ const SmartGallery = (() => {
     const $img = $('#lightbox-img');
     const $caption = $('#lightbox-caption');
 
-    $img.attr('src', '').removeClass('zoomed').css('transform', '').css('transform-origin', 'center center'); // clear previous and reset zoom
-
-    // Append timestamp to prevent aggressive browser caching on the full res image route
+    $img.attr('src', '').removeClass('zoomed').css('transform', '').css('transform-origin', 'center center');
     $img.attr('src', '/api/images/' + item.id + '/full?t=' + Date.now());
     $caption.text(item.fileName + ' (' + (idx + 1) + ' of ' + state.results.length + ')');
-    $lb.fadeIn(150);
+    
+    $lb.addClass('visible');
   }
 
   function closeLightbox() {
-    $('#lightbox').fadeOut(150);
+    $('#lightbox').removeClass('visible');
     $('#lightbox-img').removeClass('zoomed').css('transform', '').css('transform-origin', 'center center');
   }
 
@@ -778,13 +793,6 @@ const SmartGallery = (() => {
         doVisualSearch(file);
       })
       .catch(() => showToast('Could not load image for similarity search', 'error'));
-  }
-
-  function openFile() {
-    const item = state.results.find(r => r.id === state.selectedId);
-    if (!item) return;
-    // Show file path as info (cannot open OS file directly from browser)
-    showToast('File: ' + (item.filePath || '—'), 'info');
   }
 
   // ─── Browsing ────────────────────────────────────────────────────────
@@ -986,11 +994,6 @@ const SmartGallery = (() => {
     });
   }
 
-  function triggerReindexFromSettings() {
-    reindex();
-    addLog('Reindex triggered for all watched folders.', 'info');
-  }
-
   // ─── Settings Modal ───────────────────────────────────────────────────
   function openSettings(tab) {
     $('#modal-overlay').addClass('visible');
@@ -1011,10 +1014,10 @@ const SmartGallery = (() => {
 
   function switchTab(tab, el) {
     state.activeTab = tab;
-    $('.modal-tab').css({ color: 'var(--text-muted)', borderBottomColor: 'transparent', fontWeight: '500' });
-    $(el).css({ color: 'var(--primary)', borderBottomColor: 'var(--primary)', fontWeight: '600' });
-    $('.tab-pane').hide();
-    $('#tab-' + tab).show();
+    $('.settings-tab').removeClass('active');
+    $(el).addClass('active');
+    $('.tab-pane').css('display', 'none');
+    $('#tab-' + tab).css('display', 'flex');
     if (tab === 'folders') loadFoldersList();
     if (tab === 'advanced') loadAdvancedSettings();
     if (tab === 'ocr') { loadAdvancedSettings(); loadOcrModels(); }
@@ -1209,18 +1212,26 @@ const SmartGallery = (() => {
   // ─── Folder Management ────────────────────────────────────────────────
   function loadFoldersList() {
     $.getJSON('/api/settings/folders', data => {
-      // Modal folders list
+      // Modal — card-style folder entries
       let modalHtml = '';
       data.forEach(f => {
         modalHtml += `
-          <div class="folder-entry" id="folder-entry-${f.id}">
-            <span class="material-symbols-outlined" style="color:var(--primary);font-size:18px">folder</span>
-            <span class="folder-entry-path">${escHtml(f.folderPath)}</span>
-            <span class="folder-entry-badge">${f.active ? 'Active' : 'Paused'}</span>
-            <span class="folder-entry-remove material-symbols-outlined" onclick="SmartGallery.removeFolder(${f.id})" title="Remove">close</span>
+          <div class="folder-card" id="folder-entry-${f.id}">
+            <span class="material-symbols-outlined" style="color:var(--text-muted);font-size:22px;flex-shrink:0">folder</span>
+            <span class="folder-card-path">${escHtml(f.folderPath)}</span>
+            <div class="folder-card-actions">
+              <label class="switch" title="${f.active ? 'Disable watching' : 'Enable watching'}">
+                <input type="checkbox" ${f.active ? 'checked' : ''} onchange="SmartGallery.toggleFolderActive(${f.id}, this.checked)">
+                <span class="slider"></span>
+              </label>
+              <span class="folder-card-status">${f.active ? 'Watching' : 'Paused'}</span>
+              <button class="folder-card-remove" onclick="SmartGallery.removeFolder(${f.id})" title="Remove">
+                <span class="material-symbols-outlined" style="font-size:18px">close</span>
+              </button>
+            </div>
           </div>`;
       });
-      $('#folders-list').html(modalHtml || '<p style="color:var(--text-dim);font-size:13px">No watched folders configured.</p>');
+      $('#folders-list').html(modalHtml || '<p style="color:var(--text-muted);font-size:13px">No watched folders configured. Add a folder above.</p>');
 
       // Sidebar folders
       let sidebarHtml = '';
@@ -1267,6 +1278,26 @@ const SmartGallery = (() => {
           loadSidebarFolders();
         }
       });
+    });
+  }
+
+  function toggleFolderActive(id, active) {
+    // Optimistic UI: update the status text immediately
+    const $card = $('#folder-entry-' + id);
+    $card.find('.folder-card-status').text(active ? 'Watching' : 'Paused');
+    $.ajax({
+      url: '/api/settings/folders/' + id + '/active',
+      method: 'PATCH',
+      contentType: 'application/json',
+      data: JSON.stringify({ active }),
+      success: () => {
+        showToast(active ? 'Folder is now being watched' : 'Folder paused', 'info');
+        loadSidebarFolders();
+      },
+      error: () => {
+        showToast('Failed to update folder status', 'error');
+        loadFoldersList(); // revert
+      }
     });
   }
 
@@ -1406,58 +1437,56 @@ const SmartGallery = (() => {
    * Called when the user opens the OCR settings tab.
    */
   function loadOcrModels() {
-
     $.getJSON('/api/ocr/models', models => {
-      // ─── Download table ───────────────────────────────────
-      let tableHtml = `<table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="border-bottom:1px solid var(--border)">
-          <th style="text-align:left;padding:6px 8px;color:var(--text-muted);font-weight:600">Language</th>
-          <th style="text-align:center;padding:6px 8px;color:var(--text-muted);font-weight:600">Status</th>
-          <th style="text-align:right;padding:6px 8px;color:var(--text-muted);font-weight:600">Action</th>
-        </tr></thead><tbody>`;
+      let tableHtml = `<table style="width:100%;border-collapse:collapse;font-size:13px;background:var(--surface)">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);background:var(--surface-alt)">
+            <th style="text-align:left;padding:12px 16px;color:var(--text-muted);font-weight:600">Language</th>
+            <th style="text-align:center;padding:12px 16px;color:var(--text-muted);font-weight:600">Action</th>
+            <th style="text-align:center;padding:12px 16px;color:var(--text-muted);font-weight:600">Active for Scanning</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      const localePrefix = {
+        'eng': 'US',
+        'tam': 'IN',
+        'tel': 'IN',
+        'kan': 'IN',
+        'chi_sim': 'CN',
+        'deu': 'DE',
+        'rus': 'RU'
+      };
 
       models.forEach(m => {
-        const downloadedBadge = m.downloaded
-          ? `<span style="color:#4caf50;font-weight:600">✅ Ready</span>`
-          : `<span style="color:var(--text-muted)">📥 Not Downloaded</span>`;
+        const prefix = localePrefix[m.key] || '??';
+        const displayLabel = `${prefix} - ${m.displayName}`;
         const dlBtn = m.downloading
-          ? `<button class="btn-secondary btn-sm" disabled>Downloading…</button>`
+          ? `<button class="btn-secondary btn-sm" style="border-radius:999px;width:100%" disabled>Downloading…</button>`
           : m.downloaded
-            ? `<button class="btn-secondary btn-sm" onclick="SmartGallery.downloadOcrModel('${m.key}')">Re-download</button>`
-            : `<button class="btn-primary btn-sm" onclick="SmartGallery.downloadOcrModel('${m.key}')">Download</button>`;
+            ? `<button class="btn-secondary btn-sm" style="border-radius:999px;width:100%" onclick="SmartGallery.downloadOcrModel('${m.key}')">Re-download</button>`
+            : `<button class="btn-primary btn-sm" style="border-radius:999px;width:100%" onclick="SmartGallery.downloadOcrModel('${m.key}')">Download</button>`;
+
+        const toggleHtml = m.downloaded
+          ? `<label class="switch" style="margin:0 auto"><input type="checkbox" class="ocr-active-check" value="${m.key}" ${m.active ? 'checked' : ''} onchange="SmartGallery.setActiveModels()"><span class="slider"></span></label>`
+          : `<label class="switch" style="margin:0 auto;opacity:0.5;pointer-events:none"><input type="checkbox" disabled><span class="slider"></span></label>`;
 
         tableHtml += `<tr id="ocr-model-row-${m.key}" style="border-bottom:1px solid var(--border)">
-          <td style="padding:8px">${m.displayName}</td>
-          <td style="padding:8px;text-align:center" id="ocr-model-status-${m.key}">${downloadedBadge}</td>
-          <td style="padding:8px;text-align:right">${dlBtn}</td>
+          <td style="padding:12px 16px;font-weight:500;color:var(--text);">${displayLabel}</td>
+          <td style="padding:12px 16px;width:120px;text-align:center">${dlBtn}</td>
+          <td style="padding:12px 16px;text-align:center">${toggleHtml}</td>
         </tr>
-        <tr id="ocr-progress-row-${m.key}" style="display:none;background:var(--card)">
-          <td colspan="3" style="padding:0 8px 8px">
-            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px" id="ocr-progress-msg-${m.key}">Starting download…</div>
-            <div style="background:var(--border);border-radius:4px;height:6px">
-              <div id="ocr-progress-bar-${m.key}" style="background:var(--primary);height:6px;border-radius:4px;width:0%;transition:width 0.3s"></div>
+        <tr id="ocr-progress-row-${m.key}" style="display:none;background:var(--surface-alt)">
+          <td colspan="3" style="padding:8px 16px 16px">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px" id="ocr-progress-msg-${m.key}">Starting download…</div>
+            <div style="background:var(--border);border-radius:999px;height:6px;overflow:hidden">
+              <div id="ocr-progress-bar-${m.key}" style="background:var(--primary);height:100%;border-radius:999px;width:0%;transition:width 0.3s"></div>
             </div>
           </td>
         </tr>`;
       });
       tableHtml += '</tbody></table>';
       $('#ocr-model-table').html(tableHtml);
-
-      // ─── Active checklist (only downloaded models) ────────
-      const downloaded = models.filter(m => m.downloaded);
-      if (downloaded.length === 0) {
-        $('#ocr-active-checklist').html('<div style="color:var(--text-muted);font-size:12px">No models downloaded yet. Download at least one above.</div>');
-      } else {
-        let checklistHtml = '<div style="display:flex;flex-wrap:wrap;gap:12px">';
-        downloaded.forEach(m => {
-          checklistHtml += `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-            <input type="checkbox" class="ocr-active-check" value="${m.key}" ${m.active ? 'checked' : ''}>
-            ${m.displayName}
-          </label>`;
-        });
-        checklistHtml += '</div>';
-        $('#ocr-active-checklist').html(checklistHtml);
-      }
     });
   }
 
@@ -1566,9 +1595,8 @@ const SmartGallery = (() => {
     reindex,
     openSettings, closeSettings, switchTab,
     saveToken, clearToken, downloadModels, verifyModels,
-    addFolder, removeFolder,
-    addTagToSelected, findSimilar, openFile,
-    triggerReindexFromSettings,
+    addFolder, removeFolder, toggleFolderActive,
+    addTagToSelected, findSimilar,
     togglePrivacyBlur, deleteImage,
     closeLightbox,
     navLightbox,
