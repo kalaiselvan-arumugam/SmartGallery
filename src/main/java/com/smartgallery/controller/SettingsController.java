@@ -108,10 +108,10 @@ public class SettingsController {
         boolean autoIndexing = settingsService.getSetting(SettingsService.KEY_AUTO_INDEXING_ENABLED)
                 .map(Boolean::parseBoolean).orElse(true);
         float threshold = settingsService.getSetting(SettingsService.KEY_SEARCH_THRESHOLD)
-                .map(Float::parseFloat).orElse(0.24f);
+                .map(Float::parseFloat).orElse(0.27f);
 
         boolean ocrIndexingEnabled = settingsService.getSetting(SettingsService.KEY_OCR_INDEXING_ENABLED)
-                .map(Boolean::parseBoolean).orElse(false);
+                .map(Boolean::parseBoolean).orElse(true);
         boolean ocrCopyEnabled = settingsService.getSetting(SettingsService.KEY_OCR_COPY_ENABLED)
                 .map(Boolean::parseBoolean).orElse(true);
 
@@ -159,7 +159,7 @@ public class SettingsController {
         }
         if (body.containsKey("ocrIndexingEnabled")) {
             boolean wasEnabled = settingsService.getSetting(SettingsService.KEY_OCR_INDEXING_ENABLED)
-                    .map(Boolean::parseBoolean).orElse(false);
+                    .map(Boolean::parseBoolean).orElse(true);
             boolean nowEnabled = Boolean.parseBoolean(body.get("ocrIndexingEnabled").toString());
             settingsService.saveSetting(SettingsService.KEY_OCR_INDEXING_ENABLED, String.valueOf(nowEnabled));
 

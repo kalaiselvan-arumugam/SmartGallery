@@ -66,16 +66,11 @@
             <version>2.19.0</version>
         </dependency>
 
-        <!-- RapidOCR for Text Extraction -->
+        <!-- Tess4J for OCR -->
         <dependency>
-            <groupId>io.github.mymonstercat</groupId>
-            <artifactId>rapidocr</artifactId>
-            <version>0.0.7</version>
-        </dependency>
-        <dependency>
-            <groupId>io.github.mymonstercat</groupId>
-            <artifactId>rapidocr-onnx-platform</artifactId>
-            <version>0.0.7</version>
+            <groupId>net.sourceforge.tess4j</groupId>
+            <artifactId>tess4j</artifactId>
+            <version>5.13.0</version>
         </dependency>
 
         <!-- Jackson for JSON (included via web starter, explicit for version clarity) -->

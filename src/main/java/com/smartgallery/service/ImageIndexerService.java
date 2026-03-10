@@ -164,7 +164,7 @@ public class ImageIndexerService {
                     && existing.getExtraJson().contains("\"exif_parsed\":true");
 
             boolean ocrEnabledNow = settingsService.getSetting(SettingsService.KEY_OCR_INDEXING_ENABLED)
-                    .map(Boolean::parseBoolean).orElse(false);
+                    .map(Boolean::parseBoolean).orElse(true);
             boolean ocrMissing = ocrEnabledNow && existing != null
                     && (existing.getExtractedText() == null || existing.getExtractedText().isBlank());
 
@@ -308,7 +308,7 @@ public class ImageIndexerService {
 
             // ── OCR ───────────────────────────────────────────────────────────
             boolean ocrEnabled = settingsService.getSetting(SettingsService.KEY_OCR_INDEXING_ENABLED)
-                    .map(Boolean::parseBoolean).orElse(false);
+                    .map(Boolean::parseBoolean).orElse(true);
             if (ocrEnabled && (entity.getExtractedText() == null || entity.getExtractedText().isBlank())) {
                 try {
                     log.info("[OCR] Running OCR on: {}", imagePath.getFileName());

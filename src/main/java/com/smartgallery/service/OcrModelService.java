@@ -20,34 +20,37 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Manages OCR language model downloads from HuggingFace and
- * notifies OcrService to hot-reload when a new model is activated.
+ * Manages OCR language model downloads from GitHub tesseract-ocr/tessdata_fast
+ * and notifies OcrService to hot-reload when a new model is activated.
  */
 @Service
 public class OcrModelService {
 
     private static final Logger log = LoggerFactory.getLogger(OcrModelService.class);
 
-    private static final String HF_BASE = "https://huggingface.co/deepghs/paddleocr/resolve/main";
-    /** Shared detection model — language-agnostic */
-    private static final String DET_FOLDER = "det/ch_PP-OCRv4_det";
-    public static final String OCR_MODELS_DIR = "D:/SmartGallery/data/ocr-models";
+    // Tesseract's "tessdata_best" repo provides significantly higher accuracy,
+    // especially for complex scripts like Tamil.
+    private static final String TESSDATA_URL_BASE = "https://github.com/tesseract-ocr/tessdata_best/raw/main/";
+    public static final String OCR_MODELS_DIR = "D:/SmartGallery/data/tessdata";
 
     // ── Model catalog ────────────────────────────────────────────────────────
     public static final List<OcrModelInfo> CATALOG = List.of(
-            new OcrModelInfo("en_v4", "🇺🇸 English (V4)", "en_PP-OCRv4_rec"),
-            new OcrModelInfo("ta_v3", "🇮🇳 Tamil (V3)", "ta_PP-OCRv3_rec"),
-            new OcrModelInfo("te_v3", "🇮🇳 Telugu (V3)", "te_PP-OCRv3_rec"),
-            new OcrModelInfo("ch_v4", "🇨🇳 Chinese + English (V4)", "ch_PP-OCRv4_rec"),
-            new OcrModelInfo("devanagari_v3", "🇮🇳 Hindi / Devanagari (V3)", "devanagari_PP-OCRv3_rec"),
-            new OcrModelInfo("arabic_v3", "🇸🇦 Arabic (V3)", "arabic_PP-OCRv3_rec"),
-            new OcrModelInfo("korean_v3", "🇰🇷 Korean (V3)", "korean_PP-OCRv3_rec"),
-            new OcrModelInfo("japan_v3", "🇯🇵 Japanese (V3)", "japan_PP-OCRv3_rec"),
-            new OcrModelInfo("latin_v3", "🌍 Latin / European (V3)", "latin_PP-OCRv3_rec"),
-            new OcrModelInfo("cyrillic_v3", "🇷🇺 Russian / Cyrillic (V3)", "cyrillic_PP-OCRv3_rec"),
-            new OcrModelInfo("ka_v3", "🇮🇳 Kannada (V3)", "ka_PP-OCRv3_rec"));
+            new OcrModelInfo("eng", "🇺🇸 English"),
+            new OcrModelInfo("tam", "🇮🇳 Tamil"),
+            new OcrModelInfo("tel", "🇮🇳 Telugu"),
+            new OcrModelInfo("chi_sim", "🇨🇳 Chinese (Simplified)"),
+            new OcrModelInfo("chi_tra", "🇨🇳 Chinese (Traditional)"),
+            new OcrModelInfo("hin", "🇮🇳 Hindi / Devanagari"),
+            new OcrModelInfo("ara", "🇸🇦 Arabic"),
+            new OcrModelInfo("kor", "🇰🇷 Korean"),
+            new OcrModelInfo("jpn", "🇯🇵 Japanese"),
+            new OcrModelInfo("spa", "🇪🇸 Spanish (Latin)"),
+            new OcrModelInfo("fra", "🇫🇷 French (Latin)"),
+            new OcrModelInfo("deu", "🇩🇪 German (Latin)"),
+            new OcrModelInfo("rus", "🇷🇺 Russian (Cyrillic)"),
+            new OcrModelInfo("kan", "🇮🇳 Kannada"));
 
-    public record OcrModelInfo(String key, String displayName, String folder) {
+    public record OcrModelInfo(String key, String displayName) {
     }
 
     // ── Runtime state ─────────────────────────────────────────────────────────
@@ -65,7 +68,7 @@ public class OcrModelService {
         try {
             Files.createDirectories(Path.of(OCR_MODELS_DIR));
         } catch (IOException e) {
-            log.error("Failed to create OCR models directory: {}", e.getMessage());
+            log.error("Failed to create tessdata directory: {}", e.getMessage());
         }
     }
 
@@ -78,7 +81,6 @@ public class OcrModelService {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("key", info.key());
             m.put("displayName", info.displayName());
-            m.put("folder", info.folder());
             m.put("downloaded", isDownloaded(info.key()));
             m.put("downloading", info.key().equals(currentDownloadKey.get()));
             result.add(m);
@@ -87,22 +89,8 @@ public class OcrModelService {
     }
 
     public boolean isDownloaded(String modelKey) {
-        Path dir = Path.of(OCR_MODELS_DIR, modelKey);
-        return Files.exists(dir.resolve("rec_model.onnx"))
-                && Files.exists(dir.resolve("det_model.onnx"));
-    }
-
-    public Path getRecModelPath(String modelKey) {
-        return Path.of(OCR_MODELS_DIR, modelKey, "rec_model.onnx");
-    }
-
-    public Path getDetModelPath(String modelKey) {
-        return Path.of(OCR_MODELS_DIR, modelKey, "det_model.onnx");
-    }
-
-    public Path getDictPath(String modelKey) {
-        Path p = Path.of(OCR_MODELS_DIR, modelKey, "dict.txt");
-        return Files.exists(p) ? p : null;
+        Path file = Path.of(OCR_MODELS_DIR, modelKey + ".traineddata");
+        return Files.exists(file);
     }
 
     /** Creates a new SSE emitter for download progress. */
@@ -115,7 +103,7 @@ public class OcrModelService {
         return emitter;
     }
 
-    /** Triggers async download of the three model files for the given key. */
+    /** Triggers async download of the traineddata file for the given key. */
     @Async("downloadExecutor")
     public void downloadModel(String modelKey) {
         if (!downloading.compareAndSet(false, true)) {
@@ -134,22 +122,12 @@ public class OcrModelService {
             return;
         }
 
-        Path destDir = Path.of(OCR_MODELS_DIR, modelKey);
+        Path destFile = Path.of(OCR_MODELS_DIR, modelKey + ".traineddata");
         try {
-            Files.createDirectories(destDir);
             publishEvent("PROGRESS", modelKey, "Starting download for " + info.displayName());
 
-            // 1. Detection model (shared across languages)
-            String detUrl = HF_BASE + "/" + DET_FOLDER + "/model.onnx";
-            downloadSingleFile(detUrl, destDir.resolve("det_model.onnx"), modelKey, "Det model", 1, 3);
-
-            // 2. Recognition model (language-specific)
-            String recUrl = HF_BASE + "/rec/" + info.folder() + "/model.onnx";
-            downloadSingleFile(recUrl, destDir.resolve("rec_model.onnx"), modelKey, "Rec model", 2, 3);
-
-            // 3. Dictionary / character map (language-specific)
-            String dictUrl = HF_BASE + "/rec/" + info.folder() + "/dict.txt";
-            downloadSingleFile(dictUrl, destDir.resolve("dict.txt"), modelKey, "Dictionary", 3, 3);
+            String url = TESSDATA_URL_BASE + modelKey + ".traineddata";
+            downloadSingleFile(url, destFile, modelKey, "Traineddata model");
 
             publishEvent("DONE", modelKey, "Download complete for " + info.displayName());
             log.info("OCR model downloaded: {}", modelKey);
@@ -157,9 +135,8 @@ public class OcrModelService {
         } catch (Exception e) {
             log.error("Failed to download OCR model {}: {}", modelKey, e.getMessage());
             publishEvent("ERROR", modelKey, "Download failed: " + e.getMessage());
-            // Cleanup partial files
             try {
-                deleteDirectory(destDir);
+                Files.deleteIfExists(destFile);
             } catch (IOException ignored) {
             }
         } finally {
@@ -171,8 +148,7 @@ public class OcrModelService {
     /** Deletes a downloaded model from disk. */
     public boolean deleteModel(String modelKey) {
         try {
-            deleteDirectory(Path.of(OCR_MODELS_DIR, modelKey));
-            return true;
+            return Files.deleteIfExists(Path.of(OCR_MODELS_DIR, modelKey + ".traineddata"));
         } catch (IOException e) {
             log.error("Failed to delete model {}: {}", modelKey, e.getMessage());
             return false;
@@ -181,11 +157,10 @@ public class OcrModelService {
 
     // ── Internal helpers ──────────────────────────────────────────────────────
 
-    private void downloadSingleFile(String url, Path dest, String modelKey,
-            String label, int stepNum, int totalSteps)
+    private void downloadSingleFile(String url, Path dest, String modelKey, String label)
             throws IOException, InterruptedException {
 
-        publishEvent("PROGRESS", modelKey, String.format("[%d/%d] Downloading %s…", stepNum, totalSteps, label));
+        publishEvent("PROGRESS", modelKey, String.format("Downloading %s…", label));
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -193,11 +168,11 @@ public class OcrModelService {
                 .GET()
                 .build();
 
-        // Stream-to-file so we can report progress
         HttpResponse<InputStream> response = httpClient.send(request,
                 HttpResponse.BodyHandlers.ofInputStream());
 
         if (response.statusCode() != 200) {
+            // GitHub might redirect or return 404. Our client follows redirects.
             throw new IOException("HTTP " + response.statusCode() + " for: " + url);
         }
 
@@ -222,8 +197,8 @@ public class OcrModelService {
                     if (pct != lastReportedPct && pct % 5 == 0) {
                         lastReportedPct = pct;
                         publishEvent("PROGRESS", modelKey,
-                                String.format("[%d/%d] %s: %d%% (%s / %s)",
-                                        stepNum, totalSteps, label, pct,
+                                String.format("%s: %d%% (%s / %s)",
+                                        label, pct,
                                         humanBytes(downloaded), humanBytes(totalBytes)));
                     }
                 }
@@ -256,18 +231,5 @@ public class OcrModelService {
         if (bytes < 1024 * 1024)
             return String.format("%.1f KB", bytes / 1024.0);
         return String.format("%.1f MB", bytes / (1024.0 * 1024));
-    }
-
-    private void deleteDirectory(Path dir) throws IOException {
-        if (!Files.exists(dir))
-            return;
-        try (var walk = Files.walk(dir)) {
-            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
-                try {
-                    Files.delete(p);
-                } catch (IOException ignored) {
-                }
-            });
-        }
     }
 }

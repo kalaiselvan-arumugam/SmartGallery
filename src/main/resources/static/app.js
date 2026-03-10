@@ -1406,10 +1406,6 @@ const SmartGallery = (() => {
    * Called when the user opens the OCR settings tab.
    */
   function loadOcrModels() {
-    // Also load hardware preference
-    $.getJSON('/api/ocr/hardware', data => {
-      $(`#hw-${data.hardware}`).prop('checked', true);
-    });
 
     $.getJSON('/api/ocr/models', models => {
       // ─── Download table ───────────────────────────────────
@@ -1524,18 +1520,6 @@ const SmartGallery = (() => {
     });
   }
 
-  /** Saves the hardware mode preference and shows a toast. */
-  function setOcrHardware(hw) {
-    $.ajax({
-      url: '/api/ocr/hardware',
-      method: 'POST',
-      contentType: 'application/json',
-      data: JSON.stringify({ hardware: hw }),
-      success: () => showToast(`Hardware set to ${hw.toUpperCase()} — reload engine to apply.`, 'info'),
-      error: () => showToast('Failed to save hardware setting', 'error')
-    });
-  }
-
   /** Saves the active (selected) models list to the backend. */
   function setActiveModels() {
     const activeModels = $('.ocr-active-check:checked').map((_, el) => el.value).get();
@@ -1593,7 +1577,6 @@ const SmartGallery = (() => {
     saveAdvancedSettings,
     copyOcrText,
     downloadOcrModel,
-    setOcrHardware,
     setActiveModels,
     reloadOcrEngine
   };

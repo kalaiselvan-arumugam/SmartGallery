@@ -169,7 +169,7 @@ public class SearchService {
         }
         if (filters.getMinScore() == null) {
             float threshold = settingsService.getSetting(SettingsService.KEY_SEARCH_THRESHOLD)
-                    .map(Float::parseFloat).orElse(0.24f);
+                    .map(Float::parseFloat).orElse(0.27f);
             filters.setMinScore(threshold);
         }
 

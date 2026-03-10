@@ -37,7 +37,7 @@ public class OcrController {
     public ResponseEntity<List<Map<String, Object>>> getModels() {
         List<Map<String, Object>> models = ocrModelService.getModelStatuses();
         // Annotate each with whether it's in the active list
-        String activeList = settingsService.getSetting("ocr.active.models").orElse("");
+        String activeList = settingsService.getSetting("ocr.active.models").orElse("eng,tam");
         Set<String> activeKeys = new HashSet<>(Arrays.asList(activeList.split(",")));
         models.forEach(m -> m.put("active", activeKeys.contains(m.get("key"))));
         return ResponseEntity.ok(models);
@@ -73,7 +73,7 @@ public class OcrController {
     public ResponseEntity<Map<String, Object>> deleteModel(@PathVariable String modelKey) {
         boolean ok = ocrModelService.deleteModel(modelKey);
         // Also remove from active list if present
-        String active = settingsService.getSetting("ocr.active.models").orElse("");
+        String active = settingsService.getSetting("ocr.active.models").orElse("eng,tam");
         List<String> activeList = new ArrayList<>(Arrays.asList(active.split(",")));
         activeList.remove(modelKey);
         settingsService.saveSetting("ocr.active.models", String.join(",", activeList));
@@ -85,7 +85,7 @@ public class OcrController {
     /** Returns the list of currently active (selected) model keys. */
     @GetMapping("/active")
     public ResponseEntity<Map<String, Object>> getActiveModels() {
-        String raw = settingsService.getSetting("ocr.active.models").orElse("");
+        String raw = settingsService.getSetting("ocr.active.models").orElse("eng,tam");
         List<String> keys = raw.isBlank()
                 ? List.of()
                 : Arrays.asList(raw.split(","));
@@ -107,24 +107,6 @@ public class OcrController {
         return ResponseEntity.ok(Map.of("activeModels", validated));
     }
 
-    // ── Hardware ──────────────────────────────────────────────────────────────
-
-    @GetMapping("/hardware")
-    public ResponseEntity<Map<String, String>> getHardware() {
-        String hw = settingsService.getSetting("ocr.hardware").orElse("cpu");
-        return ResponseEntity.ok(Map.of("hardware", hw));
-    }
-
-    @PostMapping("/hardware")
-    public ResponseEntity<Map<String, String>> setHardware(@RequestBody Map<String, Object> body) {
-        String hw = body.getOrDefault("hardware", "cpu").toString().toLowerCase();
-        if (!Set.of("cpu", "gpu", "directml").contains(hw)) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid hardware: " + hw));
-        }
-        settingsService.saveSetting("ocr.hardware", hw);
-        return ResponseEntity.ok(Map.of("hardware", hw));
-    }
-
     // ── Hot reload ────────────────────────────────────────────────────────────
 
     /**
@@ -135,7 +117,7 @@ public class OcrController {
         try {
             ocrService.reloadEngine();
             return ResponseEntity.ok(Map.of("status", "reloaded",
-                    "note", "Restart the application to fully apply model changes."));
+                    "note", "OCR engine languages updated successfully."));
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", e.getMessage()));
