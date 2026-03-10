@@ -38,6 +38,7 @@ subgraph App["Image Indexing Application"]
     Watcher["File Watcher Component"]
     Parser["Metadata Parser Component"]
     AI["AI Inference Component"]
+    OCR["OCR Engine (Tess4J)"]
     Mapper["ID Mapper"]
 end
 
@@ -47,14 +48,18 @@ subgraph Storage["Storage"]
 end
 
 Model["CLIP ONNX Model"]
+TessData["Tesseract Language Models"]
 
 Watcher --> Parser
 Watcher --> AI
+Watcher --> OCR
+OCR --> Mapper
 AI --> Mapper
 Parser --> DB
 Mapper --> VS
 DB --> Mapper
 Model -.-> AI
+TessData -.-> OCR
 ```
 
 ### The Search Process
@@ -78,6 +83,12 @@ Model -.-> AI
 *   **Geotag Extraction:** Parses embedded GPS lat/long metadata from your smartphone and drone photos.
 *   **Leaflet Integration:** Renders a gorgeous interactive map explicitly pinning the exact geographic location where the photo was taken without leaving the detail panel.
 
+### 📝 Powerful Native OCR
+*   **Multilingual Text Extraction:** Seamlessly extracts text from images (screenshots, documents) using the industry-leading **Tesseract OCR Engine** via Tess4J.
+*   **Instant Text Search:** Directly search for exact sentences, paragraphs, or random words trapped inside photos.
+*   **Built-in Preprocessing:** Automatically auto-grayscales, upscales, and deskews images to guarantee the highest possible accuracy, natively supporting non-Latin scripts like Tamil.
+*   **Intelligent Noise Filtering:** A custom heuristic algorithm drops graphical artifacts from being misidentified as text.
+
 ### 🏷️ Custom "Overriding" Tags 
 *   Because small AI models have inherent mathematical "blind spots" (e.g., struggling to identify specific niche objects), SmartGallery includes a manual tagging system.
 *   Tagging a photo with `"cow"` automatically forces a mathematically perfect `100%` similarity score whenever you search for "cow", elegantly bypassing standard AI constraints.
@@ -92,6 +103,7 @@ Model -.-> AI
 ### Backend
 *   **Core:** Java 17+, Spring Boot (Web, Data JPA)
 *   **AI Engine:** ONNX Runtime (`ai.onnxruntime`), DJL Tokenizers
+*   **OCR Engine:** Tess4J wrapper for Tesseract (`net.sourceforge.tess4j`)
 *   **Metadata:** `com.drewnoakes:metadata-extractor`
 *   **Database:** H2 In-Memory/File database combo (Spring Data JPA)
 
