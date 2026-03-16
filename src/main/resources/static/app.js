@@ -381,7 +381,80 @@ const SmartGallery = (() => {
     const isListView = state.viewMode === 'list';
     const fragment = document.createDocumentFragment();
 
+    const groupBy = $('#group-by-select').val() || 'none';
+    
+    // Calculate lastGroupKey properly instead of relying on unreliable .data()
+    // It should be the group key of the LAST item we actually inserted into the DOM.
+    let lastGroupKey = '';
+    let currentInnerGrid = null;
+    
+    // Find what we have already rendered safely.
+    if (!resetScroll) {
+       // Look at the last card in the grid to see what group it belonged to
+       const $lastCard = $grid.find('.gallery-card').last();
+       if ($lastCard.length) {
+         const id = $lastCard.data('id');
+         const item = state.results.find(r => r.id === parseInt(id));
+         if (item) {
+             if (groupBy === 'folder') {
+               const path = item.filePath || '';
+               const normalized = path.replace(/\\/g, '/');
+               const idx = normalized.lastIndexOf('/');
+               lastGroupKey = idx > 0 ? normalized.substring(0, idx) : normalized;
+             } else if (groupBy === 'date') {
+               const dateStr = item.lastModified || '';
+               lastGroupKey = dateStr.length >= 10 ? dateStr.substring(0, 10) : 'Unknown Date';
+             }
+         }
+       }
+       // Grab the last active inner grid to append items to, if we haven't changed groups
+       currentInnerGrid = $grid.find('.gallery-grid-inner').last()[0];
+    }
+
+    // Always ensure we have at least one inner grid if not grouping
+    if (!currentInnerGrid && groupBy === 'none') {
+       currentInnerGrid = document.createElement('div');
+       currentInnerGrid.className = isListView ? 'gallery-grid-inner list-view' : 'gallery-grid-inner';
+       fragment.appendChild(currentInnerGrid);
+    }
+
     state.results.forEach((item, index) => {
+      // Grouping header injection
+      if (groupBy !== 'none') {
+        let currentGroupKey = '';
+        let displayHeader = '';
+        if (groupBy === 'folder') {
+          const path = item.filePath || '';
+          const normalized = path.replace(/\\/g, '/');
+          const idx = normalized.lastIndexOf('/');
+          currentGroupKey = idx > 0 ? normalized.substring(0, idx) : normalized;
+          
+          const lastSlash = currentGroupKey.lastIndexOf('/');
+          displayHeader = lastSlash >= 0 ? currentGroupKey.substring(lastSlash + 1) : currentGroupKey;
+          if (!displayHeader) displayHeader = 'Root';
+        } else if (groupBy === 'date') {
+          const dateStr = item.lastModified || '';
+          currentGroupKey = dateStr.length >= 10 ? dateStr.substring(0, 10) : 'Unknown Date';
+          displayHeader = currentGroupKey;
+        }
+
+        // Only inject header if this card is NOT already in the DOM AND the group changed
+        if (currentGroupKey !== lastGroupKey && !$('#card-' + item.id).length) {
+          const header = document.createElement('div');
+          header.className = 'gallery-group-header';
+          header.textContent = displayHeader;
+          fragment.appendChild(header);
+          
+          // Create a NEW inner grid for this group
+          currentInnerGrid = document.createElement('div');
+          currentInnerGrid.className = isListView ? 'gallery-grid-inner list-view' : 'gallery-grid-inner';
+          fragment.appendChild(currentInnerGrid);
+        }
+        
+        // Always update lastGroupKey for the next iteration
+        lastGroupKey = currentGroupKey;
+      }
+
       // Skip if card already exists in the DOM
       if ($('#card-' + item.id).length) return;
 
@@ -454,9 +527,14 @@ const SmartGallery = (() => {
         toggleFavorite(item, this);
       });
 
-      fragment.appendChild(card);
+      if (currentInnerGrid) {
+        currentInnerGrid.appendChild(card);
+      } else {
+        fragment.appendChild(card);
+      }
     });
 
+    $grid.data('lastGroupKey', lastGroupKey);
     $grid[0].appendChild(fragment);
     $grid[0].style.setProperty('--cols', state.thumbCols);
   }
@@ -856,7 +934,16 @@ const SmartGallery = (() => {
 
   // ─── Filters ─────────────────────────────────────────────────────────
   function buildFilters() {
-    return null;
+    const filters = {};
+    if ($('#sort-by-select').length) {
+      const sortBy = $('#sort-by-select').val();
+      const sortOrder = $('#sort-order-select').val();
+      const groupBy = $('#group-by-select').val();
+      if (sortBy) filters.sortBy = sortBy;
+      if (sortOrder) filters.sortOrder = sortOrder;
+      if (groupBy) filters.groupBy = groupBy;
+    }
+    return Object.keys(filters).length ? filters : null;
   }
 
   // ─── View Modes ───────────────────────────────────────────────────────
@@ -1042,6 +1129,10 @@ const SmartGallery = (() => {
         $('body').removeClass('light-mode');
         $('#theme-icon').text('light_mode');
       }
+
+      $('#sort-by-select').val(localStorage.getItem('sg_sortBy') || 'relevance');
+      $('#sort-order-select').val(localStorage.getItem('sg_sortOrder') || 'desc');
+      $('#group-by-select').val(localStorage.getItem('sg_groupBy') || 'none');
     });
   }
 
@@ -1055,6 +1146,20 @@ const SmartGallery = (() => {
     const searchThreshold = parseFloat($('#threshold-slider').val());
     const ocrLanguage = $('#ocr-lang-select').val();
 
+    let oldSortBy = localStorage.getItem('sg_sortBy') || 'relevance';
+    let oldSortOrder = localStorage.getItem('sg_sortOrder') || 'desc';
+    let oldGroupBy = localStorage.getItem('sg_groupBy') || 'none';
+
+    const newSortBy = $('#sort-by-select').val() || 'relevance';
+    const newSortOrder = $('#sort-order-select').val() || 'desc';
+    const newGroupBy = $('#group-by-select').val() || 'none';
+
+    localStorage.setItem('sg_sortBy', newSortBy);
+    localStorage.setItem('sg_sortOrder', newSortOrder);
+    localStorage.setItem('sg_groupBy', newGroupBy);
+
+    const sortChanged = oldSortBy !== newSortBy || oldSortOrder !== newSortOrder || oldGroupBy !== newGroupBy;
+
     $.ajax({
       url: '/api/settings/advanced',
       method: 'POST',
@@ -1066,6 +1171,14 @@ const SmartGallery = (() => {
         state.ocrCopyEnabled = ocrCopyEnabled;
         state.ocrLanguage = ocrLanguage;
         showToast('Advanced settings saved', 'success');
+        
+        if (sortChanged) {
+          state.results = [];
+          state.offset = 0;
+          if (state.currentQuery) doSearch(state.currentQuery);
+          else fetchAllPhotos();
+        }
+
         // Refresh detail panel if open
         if (state.selectedId) {
           const item = state.results.find(res => res.id === state.selectedId);

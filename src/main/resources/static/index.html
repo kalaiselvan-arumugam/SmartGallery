@@ -105,7 +105,7 @@
                 <!-- Toolbar -->
                 <div id="toolbar">
                     <div class="toolbar-left">
-                        <span id="indexed-count"><span id="result-count">0</span> results</span>
+                        <span id="indexed-count"><span id="result-count">0</span>&nbsp;results</span>
                     </div>
                     <div class="toolbar-right">
                         <div class="size-slider-wrap">
@@ -436,8 +436,43 @@
                     <div class="tab-body">
                         <div class="tab-content-inner">
 
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px;border-bottom:1px solid var(--border)">
+                                <div style="flex:1;padding-right:16px">
+                                    <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Sort By</h4>
+                                    <p class="form-hint" style="margin:4px 0 0">Primary sorting metric for search results.</p>
+                                </div>
+                                <select id="sort-by-select" class="form-input" style="width:140px;height:32px;padding:0 8px;font-size:13px;" onchange="SmartGallery.saveAdvancedSettings()">
+                                    <option value="relevance">Relevance</option>
+                                    <option value="date">Date Modified</option>
+                                    <option value="name">File Name</option>
+                                </select>
+                            </div>
+
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)">
+                                <div style="flex:1;padding-right:16px">
+                                    <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Sort Order</h4>
+                                    <p class="form-hint" style="margin:4px 0 0">Ascending or Descending order.</p>
+                                </div>
+                                <select id="sort-order-select" class="form-input" style="width:140px;height:32px;padding:0 8px;font-size:13px;" onchange="SmartGallery.saveAdvancedSettings()">
+                                    <option value="desc">Descending</option>
+                                    <option value="asc">Ascending</option>
+                                </select>
+                            </div>
+
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)">
+                                <div style="flex:1;padding-right:16px">
+                                    <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Group By</h4>
+                                    <p class="form-hint" style="margin:4px 0 0">Visually group search results by category.</p>
+                                </div>
+                                <select id="group-by-select" class="form-input" style="width:140px;height:32px;padding:0 8px;font-size:13px;" onchange="SmartGallery.saveAdvancedSettings()">
+                                    <option value="none">None</option>
+                                    <option value="folder">Folder</option>
+                                    <option value="date">Date</option>
+                                </select>
+                            </div>
+
                             <div
-                                style="display:flex;justify-content:space-between;align-items:center;padding:0 0 16px;border-bottom:1px solid var(--border)">
+                                style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)">
                                 <div style="flex:1;padding-right:16px">
                                     <h4 style="margin:0;font-size:14px;color:var(--text);font-weight:600">Show/Hide EXIF
                                         Data</h4>

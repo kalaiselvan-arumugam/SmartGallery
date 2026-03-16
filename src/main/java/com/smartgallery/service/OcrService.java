@@ -149,37 +149,87 @@ public class OcrService {
 
     /**
      * Heuristic to determine if the OCR result is genuine text or just noisy symbols.
-     * Rejects extremely short strings or strings that consist overwhelmingly of punctuation/symbols.
+     * Rejects extremely short strings, strings that consist overwhelmingly of punctuation/symbols,
+     * or strings that consist primarily of isolated "ghost" characters.
      */
     private boolean isValidText(String text) {
         if (text == null || text.isBlank()) {
             return false;
         }
 
-        long nonWhitespaceCount = 0;
-        long alphanumericCount = 0;
-
-        for (int i = 0; i < text.length(); ) {
-            int codePoint = text.codePointAt(i);
-            if (!Character.isWhitespace(codePoint)) {
-                nonWhitespaceCount++;
-                if (Character.isAlphabetic(codePoint) || Character.isDigit(codePoint)) {
-                    alphanumericCount++;
-                }
-            }
-            i += Character.charCount(codePoint);
-        }
-
-        // If it's less than 3 alphanumeric characters total, it's considered noise (e.g., "- 1 .")
-        if (alphanumericCount < 3) {
+        String trimmed = text.trim();
+        // 1. Absolute Minimum length Check
+        if (trimmed.length() < 3) {
             return false;
         }
 
-        // If less than 40% of the non-whitespace characters are alphanumeric, reject it (e.g., "/..///|...A")
-        if (nonWhitespaceCount > 0 && ((double) alphanumericCount / nonWhitespaceCount) < 0.4) {
+        // 2. Character Distribution Analysis
+        long nonWhitespaceCount = 0;
+        long alphanumericCount = 0;
+        int isolatedAlphanumeric = 0;
+        
+        // Use code points to handle multi-byte characters (Tamil, etc.)
+        int[] codePoints = trimmed.codePoints().toArray();
+        for (int i = 0; i < codePoints.length; i++) {
+            int cp = codePoints[i];
+            if (!Character.isWhitespace(cp)) {
+                nonWhitespaceCount++;
+                if (Character.isLetterOrDigit(cp)) {
+                    alphanumericCount++;
+                    
+                    // Check if this alphanumeric character is "isolated" (surrounded by noise or spaces)
+                    boolean prevIsNoise = (i == 0 || !Character.isLetterOrDigit(codePoints[i-1]));
+                    boolean nextIsNoise = (i == codePoints.length - 1 || !Character.isLetterOrDigit(codePoints[i+1]));
+                    if (prevIsNoise && nextIsNoise) {
+                        isolatedAlphanumeric++;
+                    }
+                }
+            }
+        }
+
+        // 3. Minimum Alphanumeric Threshold
+        // Ghost characters usually appear in 1s or 2s. Increasing from 3 to 4.
+        if (alphanumericCount < 4) {
+            return false;
+        }
+
+        // 4. Density Check: Ratio of alphanumeric to total non-whitespace
+        // Legit text is dense. Noise is sparse (e.g. " . | / A _ ,")
+        double density = (double) alphanumericCount / nonWhitespaceCount;
+        if (density < 0.5) {
+            return false;
+        }
+
+        // 5. Isolation Check
+        // Noise produces isolated characters. If more than 60% are isolated, reject.
+        // Legit words usually have 2+ characters together.
+        if (alphanumericCount > 0 && ((double) isolatedAlphanumeric / alphanumericCount) > 0.6) {
+            return false;
+        }
+
+        // 6. Repeating Sequence Check
+        // Noise often produces "........" or "|||||||"
+        if (hasExcessiveRepetition(trimmed)) {
             return false;
         }
 
         return true;
+    }
+
+    private boolean hasExcessiveRepetition(String s) {
+        if (s.length() < 5) return false;
+        int maxRepeat = 1;
+        int currentRepeat = 1;
+        int[] codePoints = s.codePoints().toArray();
+        for (int i = 1; i < codePoints.length; i++) {
+            if (codePoints[i] == codePoints[i-1] && !Character.isWhitespace(codePoints[i])) {
+                currentRepeat++;
+                maxRepeat = Math.max(maxRepeat, currentRepeat);
+            } else {
+                currentRepeat = 1;
+            }
+        }
+        // If more than 4 non-whitespace identical characters in a row, reject as noise
+        return maxRepeat > 4;
     }
 }

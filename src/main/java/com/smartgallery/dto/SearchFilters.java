@@ -22,6 +22,15 @@ public class SearchFilters {
     /** Minimum similarity score (0.0 to 1.0) */
     private Float minScore;
 
+    /** Sort by: relevance, date, name */
+    private String sortBy;
+
+    /** Sort order: desc, asc */
+    private String sortOrder;
+
+    /** Group by: none, folder, date */
+    private String groupBy;
+
     public String getFolderPath() {
         return folderPath;
     }
@@ -60,5 +69,29 @@ public class SearchFilters {
 
     public void setMinScore(Float minScore) {
         this.minScore = minScore;
+    }
+
+    public String getSortBy() {
+        return sortBy;
+    }
+
+    public void setSortBy(String sortBy) {
+        this.sortBy = sortBy;
+    }
+
+    public String getSortOrder() {
+        return sortOrder;
+    }
+
+    public void setSortOrder(String sortOrder) {
+        this.sortOrder = sortOrder;
+    }
+
+    public String getGroupBy() {
+        return groupBy;
+    }
+
+    public void setGroupBy(String groupBy) {
+        this.groupBy = groupBy;
     }
 }

@@ -14,6 +14,8 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.PageRequest;
 
 /**
  * Orchestrates CLIP semantic search and filtering.
@@ -186,7 +188,7 @@ public class SearchService {
         Map<Long, ImageEntity> entityMap = imageRepository.findAllById(orderedIds)
                 .stream().collect(Collectors.toMap(ImageEntity::getId, e -> e));
 
-        // Build results in score-rank order, applying filters
+        // Build results
         List<SearchResultItem> results = new ArrayList<>();
         for (InMemoryVectorStore.SearchHit hit : hits) {
             ImageEntity entity = entityMap.get(hit.imageId);
@@ -198,8 +200,17 @@ public class SearchService {
                 continue;
 
             results.add(toResultItem(entity, hit.score));
-            if (results.size() >= limit)
-                break;
+        }
+
+        // Apply sorting
+        Comparator<SearchResultItem> comparator = buildComparator(filters);
+        if (comparator != null) {
+            results.sort(comparator);
+        }
+
+        // Apply pagination limit manually since we sorted
+        if (results.size() > limit) {
+            results = results.subList(0, limit);
         }
 
         return results;
@@ -211,26 +222,31 @@ public class SearchService {
     @Transactional(readOnly = true)
     public List<SearchResultItem> fallbackFilenameSearch(String query, SearchFilters filters, int limit, int offset) {
         int pageNumber = limit > 0 ? offset / limit : 0;
+        Sort sort = buildDbSort(filters);
 
         if (query == null || query.isBlank()) {
-            // Return most recent images
-            return imageRepository.findAll(
-                    org.springframework.data.domain.PageRequest.of(pageNumber, limit,
-                            org.springframework.data.domain.Sort.by("indexedAt").descending()))
+            return imageRepository.findAll(PageRequest.of(pageNumber, limit, sort))
                     .stream()
                     .filter(e -> passesFilters(e, 0.0, filters))
                     .map(e -> toResultItem(e, 0.0))
                     .collect(Collectors.toList());
         }
 
-        // Custom filename query pagination filtering via stream limit/skip because
-        // repository method wasn't paginated
-        return imageRepository.findByFileNameContaining(query)
+        // Custom filename query
+        List<SearchResultItem> matches = imageRepository.findByFileNameContaining(query)
                 .stream()
                 .filter(e -> passesFilters(e, 0.5, filters))
+                .map(e -> toResultItem(e, 0.5))
+                .collect(Collectors.toList());
+
+        Comparator<SearchResultItem> cmp = buildComparator(filters);
+        if (cmp != null) {
+            matches.sort(cmp);
+        }
+
+        return matches.stream()
                 .skip(offset)
                 .limit(limit)
-                .map(e -> toResultItem(e, 0.5))
                 .collect(Collectors.toList());
     }
 
@@ -340,6 +356,92 @@ public class SearchService {
         }
 
         return true;
+    }
+
+    private Sort buildDbSort(SearchFilters filters) {
+        if (filters == null) return Sort.by("indexedAt").descending();
+
+        String sortBy = filters.getSortBy();
+        String sortOrder = filters.getSortOrder();
+        String groupBy = filters.getGroupBy();
+
+        Sort sort = Sort.unsorted();
+
+        if ("folder".equals(groupBy)) {
+            sort = sort.and(Sort.by(Sort.Direction.ASC, "filePath"));
+        } else if ("date".equals(groupBy)) {
+            // Can't perfectly group by date using JPQL Sort since it compares time too, 
+            // but we'll sort DESC over lastModified to approximate group clustering.
+            sort = sort.and(Sort.by(Sort.Direction.DESC, "lastModified"));
+        }
+
+        Sort.Direction dir = "asc".equals(sortOrder) ? Sort.Direction.ASC : Sort.Direction.DESC;
+
+        if ("date".equals(sortBy)) {
+            sort = sort.and(Sort.by(dir, "lastModified"));
+        } else if ("name".equals(sortBy)) {
+            sort = sort.and(Sort.by(dir, "filePath"));
+        } else {
+            sort = sort.and(Sort.by(dir, "indexedAt"));
+        }
+
+        return sort;
+    }
+
+    private Comparator<SearchResultItem> buildComparator(SearchFilters filters) {
+        if (filters == null) return null;
+
+        String sortBy = filters.getSortBy();
+        String sortOrder = filters.getSortOrder();
+        String groupBy = filters.getGroupBy();
+
+        // If 'relevance' without grouping, keep original score order
+        if (("relevance".equals(sortBy) || sortBy == null || sortBy.isBlank()) 
+             && ("none".equals(groupBy) || groupBy == null || groupBy.isBlank())) {
+            return null;
+        }
+
+        Comparator<SearchResultItem> comparator = (a, b) -> 0;
+
+        // Apply grouping sorts first
+        if ("folder".equals(groupBy)) {
+            comparator = comparator.thenComparing(item -> getParentFolder(item.getFilePath()), String.CASE_INSENSITIVE_ORDER);
+        } else if ("date".equals(groupBy)) {
+            comparator = comparator.thenComparing(item -> extractDatePart(item.getLastModified()), Comparator.reverseOrder());
+        }
+
+        // Apply secondary sorts
+        boolean isAsc = "asc".equals(sortOrder);
+        Comparator<SearchResultItem> secondary = null;
+
+        if ("date".equals(sortBy)) {
+            secondary = Comparator.comparing(item -> item.getLastModified() != null ? item.getLastModified() : "");
+        } else if ("name".equals(sortBy)) {
+            secondary = Comparator.comparing(item -> item.getFileName() != null ? item.getFileName() : "", String.CASE_INSENSITIVE_ORDER);
+        } else {
+            // Default secondary is relevance score
+            secondary = Comparator.comparing(SearchResultItem::getScore);
+            // Reverse because higher score is better
+            isAsc = !isAsc;
+        }
+
+        if (!isAsc) {
+            secondary = secondary.reversed();
+        }
+
+        return comparator.thenComparing(secondary);
+    }
+
+    private String getParentFolder(String path) {
+        if (path == null) return "";
+        path = path.replace("\\", "/");
+        int idx = path.lastIndexOf('/');
+        return idx > 0 ? path.substring(0, idx) : path;
+    }
+
+    private String extractDatePart(String dateStr) {
+        if (dateStr == null || dateStr.length() < 10) return "9999-12-31"; // So nulls group together
+        return dateStr.substring(0, 10);
     }
 
     /**
