@@ -14,7 +14,10 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
+import net.sourceforge.tess4j.Word;
+import net.sourceforge.tess4j.ITessAPI;
 
 /**
  * OCR service backed by Tess4J (Tesseract OCR Wrapper).
@@ -97,29 +100,57 @@ public class OcrService {
                 image = ImageHelper.getScaledInstance(image, image.getWidth() * 2, image.getHeight() * 2);
             }
 
-            // 3. Deskew the image (correct rotation/tilt)
+            // 3. Deskew the image (correct rotation/tilt, angle is in degrees)
             ImageDeskew id = new ImageDeskew(image);
             double imageSkewAngle = id.getSkewAngle();
-            // the skew angle is in radians or degrees? getSkewAngle returns degrees! Wait,
-            // it returns double, where positive is counterclockwise.
-            // Documentation for getSkewAngle states it returns angle in degrees.
-            if ((imageSkewAngle > 0.05d || imageSkewAngle < -0.05d)) {
+            if (imageSkewAngle > 0.05d || imageSkewAngle < -0.05d) {
                 log.debug("Deskewing image by {} degrees", -imageSkewAngle);
                 image = ImageHelper.rotateImage(image, -imageSkewAngle);
             }
 
-            String result = tesseract.doOCR(image);
-            if (result == null || result.isBlank()) {
-                return null;
-            }
-            
-            result = result.trim();
-            if (!isValidText(result)) {
-                log.info("OCR text rejected as noise for {}: {}", imageFile.getName(), result);
+            // Extract words and their individual confidence scores
+            List<Word> words = tesseract.getWords(image, ITessAPI.TessPageIteratorLevel.RIL_WORD);
+            if (words == null || words.isEmpty()) {
                 return null;
             }
 
-            log.info("Extracted OCR text from {}: {}", imageFile.getName(), result);
+            StringBuilder sb = new StringBuilder();
+            double totalConfidenceWeighted = 0;
+            int totalWeight = 0;
+
+            for (Word word : words) {
+                String text = word.getText();
+                if (text == null || text.trim().isEmpty()) continue;
+
+                sb.append(text).append(" ");
+                int weight = text.length();
+                totalConfidenceWeighted += (word.getConfidence() * weight);
+                totalWeight += weight;
+                log.debug("  Word: '{}' | Confidence: {}", text.trim(), word.getConfidence());
+            }
+
+            if (totalWeight == 0) return null;
+
+            double avgConfidence = totalConfidenceWeighted / totalWeight;
+            String result = sb.toString().trim();
+
+            // Tess4J word-level confidence for real text reliably scores 60%+.
+            // Hallucinated noise on textures, walls, and natural scenes typically scores < 50%.
+            // This threshold is the primary noise gate — heuristics below only catch edge cases.
+            final double CONFIDENCE_THRESHOLD = 60.0;
+            if (avgConfidence < CONFIDENCE_THRESHOLD) {
+                log.info("OCR text rejected due to low confidence ({}%) for {}: {}",
+                        String.format("%.1f", avgConfidence), imageFile.getName(), result);
+                return null;
+            }
+
+            if (!isValidText(result)) {
+                log.info("OCR text rejected as noise by heuristics for {}: {}", imageFile.getName(), result);
+                return null;
+            }
+
+            log.info("Extracted OCR text (Confidence: {}%) from {}: {}",
+                    String.format("%.1f", avgConfidence), imageFile.getName(), result);
             return result;
         } catch (Exception e) {
             log.error("OCR error for {}: {}", imageFile.getName(), e.getMessage());
@@ -148,88 +179,51 @@ public class OcrService {
     }
 
     /**
-     * Heuristic to determine if the OCR result is genuine text or just noisy symbols.
-     * Rejects extremely short strings, strings that consist overwhelmingly of punctuation/symbols,
-     * or strings that consist primarily of isolated "ghost" characters.
+     * Lightweight safety net — the primary noise filter is now the Tesseract confidence
+     * score gate above. This method only catches extreme structural garbage that slips
+     * through (completely blank output, zero letter content, or 5+ consecutive identical
+     * letters like "vvvvv" or Tamil hallucination strings like "வவவவவ").
+     *
+     * Previous aggressive heuristics (symbol ratio, short-word ratio, density, isolation)
+     * were removed because they caused false rejections on valid content such as:
+     *   - URLs (high symbol count from '/', ':', '.')
+     *   - Tamil text (many single-character words)
+     *   - Mixed-language screenshots
      */
     private boolean isValidText(String text) {
-        if (text == null || text.isBlank()) {
-            return false;
-        }
+        if (text == null || text.isBlank()) return false;
 
         String trimmed = text.trim();
-        // 1. Absolute Minimum length Check
-        if (trimmed.length() < 3) {
-            return false;
-        }
 
-        // 2. Character Distribution Analysis
-        long nonWhitespaceCount = 0;
-        long alphanumericCount = 0;
-        int isolatedAlphanumeric = 0;
-        
-        // Use code points to handle multi-byte characters (Tamil, etc.)
-        int[] codePoints = trimmed.codePoints().toArray();
-        for (int i = 0; i < codePoints.length; i++) {
-            int cp = codePoints[i];
-            if (!Character.isWhitespace(cp)) {
-                nonWhitespaceCount++;
-                if (Character.isLetterOrDigit(cp)) {
-                    alphanumericCount++;
-                    
-                    // Check if this alphanumeric character is "isolated" (surrounded by noise or spaces)
-                    boolean prevIsNoise = (i == 0 || !Character.isLetterOrDigit(codePoints[i-1]));
-                    boolean nextIsNoise = (i == codePoints.length - 1 || !Character.isLetterOrDigit(codePoints[i+1]));
-                    if (prevIsNoise && nextIsNoise) {
-                        isolatedAlphanumeric++;
-                    }
-                }
-            }
-        }
+        // Must have at least 3 characters
+        if (trimmed.length() < 3) return false;
 
-        // 3. Minimum Alphanumeric Threshold
-        // Ghost characters usually appear in 1s or 2s. Increasing from 3 to 4.
-        if (alphanumericCount < 4) {
-            return false;
-        }
+        // Must contain at least one real letter or digit
+        boolean hasAlphanumeric = trimmed.codePoints().anyMatch(Character::isLetterOrDigit);
+        if (!hasAlphanumeric) return false;
 
-        // 4. Density Check: Ratio of alphanumeric to total non-whitespace
-        // Legit text is dense. Noise is sparse (e.g. " . | / A _ ,")
-        double density = (double) alphanumericCount / nonWhitespaceCount;
-        if (density < 0.5) {
-            return false;
-        }
-
-        // 5. Isolation Check
-        // Noise produces isolated characters. If more than 60% are isolated, reject.
-        // Legit words usually have 2+ characters together.
-        if (alphanumericCount > 0 && ((double) isolatedAlphanumeric / alphanumericCount) > 0.6) {
-            return false;
-        }
-
-        // 6. Repeating Sequence Check
-        // Noise often produces "........" or "|||||||"
-        if (hasExcessiveRepetition(trimmed)) {
-            return false;
-        }
+        // Reject if any letter repeats 5+ times consecutively — always noise (e.g. "வவவவவ", "aaaaa")
+        if (hasExcessiveRepetition(trimmed)) return false;
 
         return true;
     }
 
     private boolean hasExcessiveRepetition(String s) {
         if (s.length() < 5) return false;
-        int maxRepeat = 1;
+        int maxLetterRepeat = 1;
         int currentRepeat = 1;
+
         int[] codePoints = s.codePoints().toArray();
         for (int i = 1; i < codePoints.length; i++) {
-            if (codePoints[i] == codePoints[i-1] && !Character.isWhitespace(codePoints[i])) {
+            if (codePoints[i] == codePoints[i - 1] && Character.isLetter(codePoints[i])) {
                 currentRepeat++;
-                maxRepeat = Math.max(maxRepeat, currentRepeat);
+                maxLetterRepeat = Math.max(maxLetterRepeat, currentRepeat);
             } else {
                 currentRepeat = 1;
             }
         }
-        // If more than 4 non-whitespace identical characters in a row, reject as noise
-        return maxRepeat > 4;
+        // 5 identical letters in a row is always noise
+        return maxLetterRepeat >= 5;
     }
 }
+

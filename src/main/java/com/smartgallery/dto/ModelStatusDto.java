@@ -1,7 +1,6 @@
 package com.smartgallery.dto;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Model status response with file-level details.
