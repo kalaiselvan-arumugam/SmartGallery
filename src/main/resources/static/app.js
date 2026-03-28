@@ -667,6 +667,15 @@ const SmartGallery = (() => {
       url: '/api/images/' + item.id + '/tags', method: 'PATCH',
       contentType: 'application/json', data: item.extraJson,
       success: () => {
+        // Increment/Decrement the sidebar favorites count immediately
+        let currentFavCount = parseInt($countFavorites.text()) || 0;
+        if (isFav) {
+          currentFavCount = Math.max(0, currentFavCount - 1);
+        } else {
+          currentFavCount++;
+        }
+        $countFavorites.text(currentFavCount);
+
         if (state.selectedId === item.id) {
           showDetailPanel(item); // Refresh tags array in side panel
         }
@@ -876,6 +885,7 @@ const SmartGallery = (() => {
   // ─── Browsing ────────────────────────────────────────────────────────
   function browse(mode) {
     $('.sidebar-item').removeClass('active');
+    hideMemoriesPanel();
 
     state.offset = 0;
     state.results = [];
@@ -914,6 +924,7 @@ const SmartGallery = (() => {
     state.results = [];
     state.offset = 0;
     state.currentQuery = '';
+    hideMemoriesPanel();
     $.ajax({
       url: '/api/search/browse?folder=' + encodeURIComponent(folderPath) + '&limit=200',
       success: data => {
@@ -931,6 +942,137 @@ const SmartGallery = (() => {
     });
   }
 
+  // ─── Memories Panel ───────────────────────────────────────────────────
+
+  function showMemoriesPanel() {
+    $('#gallery-container').hide();
+    $('#memories-panel').show();
+  }
+
+  function hideMemoriesPanel() {
+    $('#memories-panel').hide();
+    $('#gallery-container').show();
+  }
+
+  function openMemories() {
+    // Highlight sidebar nav
+    $('.sidebar-item').removeClass('active');
+    $('#nav-memories').addClass('active');
+
+    // Reset gallery state so going back works cleanly
+    state.results = [];
+    state.offset = 0;
+    state.currentQuery = '';
+    $searchInput.val('');
+
+    showMemoriesPanel();
+
+    // Hide all sections while loading
+    $('#memories-on-this-day-section').hide();
+    $('#memories-today-section').hide();
+    $('#memories-empty').hide();
+    $('#memories-year-groups').empty();
+    $('#memories-today-strip').empty();
+
+    const today = new Date();
+    let sectionsWithData = 0;
+    let memoriesTotal = 0;
+    $resultCount.text(0);
+
+    // --- On This Day ---
+    $.ajax({
+      url: '/api/memories/on-this-day',
+      method: 'GET',
+      success: items => {
+        if (items && items.length > 0) {
+          sectionsWithData++;
+          memoriesTotal += items.length;
+          $resultCount.text(memoriesTotal);
+          renderOnThisDay(items, today);
+          $('#memories-on-this-day-section').show();
+        }
+        checkMemoriesEmpty(sectionsWithData);
+      },
+      error: () => checkMemoriesEmpty(sectionsWithData)
+    });
+
+    // --- Today's Photos ---
+    $.ajax({
+      url: '/api/memories/today',
+      method: 'GET',
+      success: items => {
+        if (items && items.length > 0) {
+          sectionsWithData++;
+          memoriesTotal += items.length;
+          $resultCount.text(memoriesTotal);
+          renderMemoriesStrip($('#memories-today-strip'), items);
+          $('#memories-today-section').show();
+        }
+        checkMemoriesEmpty(sectionsWithData);
+      },
+      error: () => checkMemoriesEmpty(sectionsWithData)
+    });
+  }
+
+  function checkMemoriesEmpty(count) {
+    if (count === 0 &&
+        !$('#memories-on-this-day-section').is(':visible') &&
+        !$('#memories-today-section').is(':visible')) {
+      $('#memories-empty').show();
+    }
+  }
+
+  /**
+   * Groups the On-This-Day results by year and renders each year as a
+   * labelled strip (e.g. "2 years ago — 2023").
+   */
+  function renderOnThisDay(items, today) {
+    const currentYear = today.getFullYear();
+    const month = today.toLocaleDateString(undefined, { month: 'long' });
+    const day = today.getDate();
+    $('#memories-on-this-day-sub').text(`${month} ${day} in past years`);
+
+    // Group by year
+    const byYear = {};
+    items.forEach(item => {
+      const year = item.lastModified ? item.lastModified.substring(0, 4) : 'Unknown';
+      if (!byYear[year]) byYear[year] = [];
+      byYear[year].push(item);
+    });
+
+    const $container = $('#memories-year-groups');
+    $container.empty();
+
+    // Sort years descending (most recent past year first)
+    Object.keys(byYear).sort((a, b) => b - a).forEach(year => {
+      const diff = currentYear - parseInt(year, 10);
+      const label = diff === 1 ? '1 year ago' : `${diff} years ago — ${year}`;
+
+      const $group = $('<div class="memories-year-group"></div>');
+      const $label = $(`<p class="memories-year-label">${label}</p>`);
+      const $strip = $('<div class="memories-strip"></div>');
+
+      renderMemoriesStrip($strip, byYear[year]);
+      $group.append($label).append($strip);
+      $container.append($group);
+    });
+  }
+
+  /**
+   * Renders a list of SearchResultItems as horizontally scrollable memory cards.
+   */
+  function renderMemoriesStrip($strip, items) {
+    $strip.empty();
+    items.forEach(item => {
+      const $card = $(`
+        <div class="memory-card" title="${escAttr(item.fileName)}">
+          <img src="${item.thumbUrl}" alt="${escAttr(item.fileName)}" loading="lazy">
+        </div>
+      `);
+      $card.on('click', () => openDetailPanel(item));
+      $strip.append($card);
+    });
+  }
 
   // ─── Filters ─────────────────────────────────────────────────────────
   function buildFilters() {
@@ -1047,10 +1189,14 @@ const SmartGallery = (() => {
       $countAll.text(count);
       $countFavorites.text(data.favoritesCount || 0);
 
-      // Auto-increment the UI results count if we are viewing the unfiltered 'All Photos' tab
+      // Auto-increment the UI results count if we are viewing the unfiltered tabs
       if (state.totalIndexed !== undefined && count > state.totalIndexed) {
         if ($('#nav-all').hasClass('active') && !state.currentQuery && !buildFilters()) {
           $resultCount.text(count);
+          if (state.offset === 0) fetchAllPhotos(); // Silently reload the grid with new items
+        } else if ($('#nav-recent').hasClass('active') && !state.currentQuery && !buildFilters()) {
+          $resultCount.text(count);
+          if (state.offset === 0) doSearch(''); // Silently reload the grid with new items
         }
       }
       state.totalIndexed = count;
@@ -1734,6 +1880,7 @@ const SmartGallery = (() => {
   // ─── Public API ───────────────────────────────────────────────────────
   return {
     init, browse, browseFolder, setView,
+    openMemories,
     reindex,
     openSettings, closeSettings, switchTab,
     saveToken, clearToken, downloadModels, verifyModels,

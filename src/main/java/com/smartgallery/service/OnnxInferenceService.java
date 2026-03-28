@@ -52,7 +52,6 @@ public class OnnxInferenceService {
     private static final float[] CLIP_MEAN = { 0.48145466f, 0.4578275f, 0.40821073f };
     private static final float[] CLIP_STD = { 0.26862954f, 0.26130258f, 0.27577711f };
     private static final int IMAGE_SIZE = 224;
-    private static final int EMBEDDING_DIM = 512;
     private static final int MAX_SEQ_LEN = 77;
 
     private final AppConfig appConfig;

@@ -19,14 +19,8 @@ public class AppConfig {
     /** Directory where generated thumbnails are stored */
     private String thumbDir = "./data/thumbs";
 
-    /** Base data directory */
-    private String dataDir = "./data";
-
     /** Hugging Face repository for CLIP ONNX models */
     private String hfRepo = "Xenova/clip-vit-base-patch32";
-
-    /** Allow automatic model downloads from Hugging Face */
-    private boolean allowAutoDownload = true;
 
     /** Thumbnail size in pixels (square) */
     private int thumbSize = 300;
@@ -71,28 +65,12 @@ public class AppConfig {
         this.thumbDir = thumbDir;
     }
 
-    public String getDataDir() {
-        return dataDir;
-    }
-
-    public void setDataDir(String dataDir) {
-        this.dataDir = dataDir;
-    }
-
     public String getHfRepo() {
         return hfRepo;
     }
 
     public void setHfRepo(String hfRepo) {
         this.hfRepo = hfRepo;
-    }
-
-    public boolean isAllowAutoDownload() {
-        return allowAutoDownload;
-    }
-
-    public void setAllowAutoDownload(boolean allowAutoDownload) {
-        this.allowAutoDownload = allowAutoDownload;
     }
 
     public int getThumbSize() {

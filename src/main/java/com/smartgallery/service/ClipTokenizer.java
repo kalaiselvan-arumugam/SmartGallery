@@ -47,7 +47,6 @@ public class ClipTokenizer {
 
     // Bytes to unicode mapping used in CLIP/GPT-2 tokenizer
     private static final Map<Integer, String> BYTE_ENCODER = buildByteEncoder();
-    private static final Map<String, Integer> BYTE_DECODER = buildByteDecoder();
 
     /**
      * GPT-2 / CLIP word-splitting regex.
@@ -253,13 +252,7 @@ public class ClipTokenizer {
         return be;
     }
 
-    private static Map<String, Integer> buildByteDecoder() {
-        Map<String, Integer> bd = new HashMap<>();
-        for (Map.Entry<Integer, String> entry : BYTE_ENCODER.entrySet()) {
-            bd.put(entry.getValue(), entry.getKey());
-        }
-        return bd;
-    }
+
 
     /**
      * Output of tokenization: parallel arrays for input_ids and attention_mask.

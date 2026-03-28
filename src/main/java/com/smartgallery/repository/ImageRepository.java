@@ -59,4 +59,24 @@ public interface ImageRepository extends JpaRepository<ImageEntity, Long> {
     List<ImageEntity> findByIsLovedTrue();
 
     long countByIsLovedTrue();
+
+    // ── Memories / "On This Day" ─────────────────────────────────────────────
+
+    /**
+     * Images whose lastModified falls in ANY prior year on the same month+day.
+     * Used for the "On This Day" / Memories feature.
+     */
+    @Query("SELECT i FROM ImageEntity i " +
+           "WHERE FUNCTION('MONTH', i.lastModified) = :month " +
+           "AND FUNCTION('DAY', i.lastModified) = :day " +
+           "AND FUNCTION('YEAR', i.lastModified) < :currentYear " +
+           "ORDER BY i.lastModified DESC")
+    List<ImageEntity> findOnThisDay(@Param("month") int month,
+                                    @Param("day") int day,
+                                    @Param("currentYear") int currentYear);
+
+    /**
+     * Images whose lastModified falls within a specific date range (e.g. today).
+     */
+    List<ImageEntity> findByLastModifiedBetween(LocalDateTime from, LocalDateTime to);
 }

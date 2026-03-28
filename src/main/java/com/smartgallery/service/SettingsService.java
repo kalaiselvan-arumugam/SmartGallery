@@ -20,8 +20,6 @@ public class SettingsService {
 
     private static final Logger log = LoggerFactory.getLogger(SettingsService.class);
     private static final String KEY_HF_TOKEN = "hf_token_encrypted";
-    private static final String KEY_HF_REPO = "hf_repo";
-    private static final String KEY_ALLOW_DOWNLOAD = "allow_auto_download";
     public static final String KEY_EXIF_ENABLED = "exif_parsing_enabled";
     public static final String KEY_EXIF_VISIBLE = "exif_display_visible";
     public static final String KEY_MAP_VISIBLE = "map_display_visible";
